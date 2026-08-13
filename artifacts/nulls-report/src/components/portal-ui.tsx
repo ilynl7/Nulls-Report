@@ -14,9 +14,10 @@ import {
   X,
 } from 'lucide-react';
 import type { User } from '@workspace/api-client-react';
-import { gameById, statusInfo, CATEGORIES } from '@/lib/catalog';
+import { categoryLabel, findOption, gameById, statusInfo, verificationInfo } from '@/lib/catalog';
 import { initialsOf } from '@/lib/format';
 import { avatarUrl } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 // ---------------------------------------------------------------------------
 // Small primitives
@@ -36,35 +37,81 @@ export function Avatar({ name, size = 'sm', avatarPath }: { name: string; size?:
 
 export function StatusBadge({ status }: { status: string }) {
   const info = statusInfo(status);
+  const { t } = useI18n();
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-bold ${info.cls}`}>
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: info.dot }} />
-      {info.label}
+      {t(`status.${status}`) || info.label}
     </span>
   );
 }
 
 export function CategoryMark({ category, size = 'sm' }: { category: string; size?: 'sm' | 'md' }) {
-  const info = CATEGORIES[category];
-  const color = info?.color ?? '#667085';
+  const option = findOption(category);
+  const color = option?.accent ?? '#667085';
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center rounded-[8px] font-bold ${size === 'md' ? 'h-10 w-10 text-[11px]' : 'h-7 w-7 text-[9px]'}`}
       style={{ background: `${color}18`, color }}
     >
-      {info?.label.slice(0, 1) ?? '?'}
+      {categoryLabel(category).slice(0, 1) ?? '?'}
+    </span>
+  );
+}
+
+export function VerificationBadge({ verification }: { verification: string }) {
+  const info = verificationInfo(verification);
+  const { t } = useI18n();
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-bold ${info.cls}`}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: info.dot }} />
+      {t(`verification.${verification}`) || info.label}
+    </span>
+  );
+}
+
+const VISIBILITY_STYLES: Record<string, { label: string; cls: string; dot: string }> = {
+  public: { label: 'Public', cls: 'bg-[#e8f6f3] text-[#247c70]', dot: '#2e9f91' },
+  private: { label: 'Private', cls: 'bg-[#f2f0fb] text-[#5b50a8]', dot: '#7468b6' },
+  hidden: { label: 'Hidden', cls: 'bg-[#fdecec] text-[#b03030]', dot: '#ca4e44' },
+  restricted: { label: 'Restricted', cls: 'bg-[#fff6df] text-[#936b16]', dot: '#ce9d40' },
+};
+
+/** The report's EFFECTIVE community visibility (server-resolved). */
+export function VisibilityBadge({ visibility }: { visibility: string }) {
+  const { t } = useI18n();
+  const info = VISIBILITY_STYLES[visibility] ?? { label: t(`visibility.${visibility}`), cls: 'bg-[#eef0f4] text-[#687385]', dot: '#98a1ad' };
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-bold ${info.cls}`}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: info.dot }} />
+      {t(`visibility.${visibility}`) || info.label}
+    </span>
+  );
+}
+
+/** Game icon in the game's brand color — the single source for game branding. */
+export function GameIcon({ game, size = 'sm' }: { game: string; size?: 'sm' | 'md' }) {
+  const info = gameById(game);
+  const Icon = info.icon;
+  const cls = `inline-flex shrink-0 items-center justify-center rounded-[10px] ${
+    size === 'md' ? 'h-10 w-10' : 'h-8 w-8'
+  }`;
+  return (
+    <span className={cls} style={{ background: `${info.color}18`, color: info.color }}>
+      <Icon size={size === 'md' ? 19 : 15} strokeWidth={2.2} />
     </span>
   );
 }
 
 export function GameBadge({ game, small }: { game: string; small?: boolean }) {
   const info = gameById(game);
+  const Icon = info.icon;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-md font-bold ${small ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-1 text-[10px]'}`}
       style={{ background: `${info.color}14`, color: info.color }}
     >
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: info.color }} />
+      <Icon size={small ? 10 : 12} strokeWidth={2.4} />
       {info.short}
     </span>
   );
@@ -235,26 +282,29 @@ export function AppShell({
 }) {
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { t } = useI18n();
   const isStaff = user ? user.role !== 'user' : false;
   const isAdmin = user?.role === 'administrator';
 
   const nav: NavItem[] = isStaff
     ? [
-        { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-        { href: '/inbox', label: 'Moderation inbox', icon: Inbox, badge: inboxCount },
-        { href: '/my-reports', label: 'My reports', icon: FileText },
-        { href: '/notifications', label: 'Notifications', icon: Bell, badge: unread },
+        { href: '/dashboard', label: t('nav.overview'), icon: LayoutDashboard },
+        { href: '/reports', label: t('nav.community'), icon: FileText },
+        { href: '/inbox', label: t('nav.inbox'), icon: Inbox, badge: inboxCount },
+        { href: '/my-reports', label: t('nav.myReports'), icon: FileText },
+        { href: '/notifications', label: t('nav.notifications'), icon: Bell, badge: unread },
       ]
     : [
-        { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
-        { href: '/submit', label: 'Submit report', icon: Plus },
-        { href: '/my-reports', label: 'My reports', icon: FileText },
-        { href: '/notifications', label: 'Notifications', icon: Bell, badge: unread },
+        { href: '/dashboard', label: t('nav.home'), icon: LayoutDashboard },
+        { href: '/reports', label: t('nav.community'), icon: FileText },
+        { href: '/submit', label: t('nav.submit'), icon: Plus },
+        { href: '/my-reports', label: t('nav.myReports'), icon: FileText },
+        { href: '/notifications', label: t('nav.notifications'), icon: Bell, badge: unread },
       ];
   if (isAdmin) {
-    nav.push({ href: '/admin', label: 'Administration', icon: Users }, { href: '/settings', label: 'Settings', icon: Settings2 });
+    nav.push({ href: '/admin', label: t('nav.admin'), icon: Users }, { href: '/settings', label: t('nav.settings'), icon: Settings2 });
   } else {
-    nav.push({ href: '/settings', label: 'Settings', icon: Settings2 });
+    nav.push({ href: '/settings', label: t('nav.settings'), icon: Settings2 });
   }
 
   const active = (href: string) => (href === '/dashboard' ? location === href || location === '/' : location.startsWith(href));
@@ -262,23 +312,23 @@ export function AppShell({
   return (
     <div className="noise min-h-[100dvh] bg-[#f7f5f0]">
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[256px] flex-col bg-[#202f46] px-4 py-5 text-[#f5f3eb] shadow-[8px_0_30px_rgba(25,40,57,.08)] transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 start-0 z-40 flex w-[256px] flex-col bg-[#202f46] px-4 py-5 text-[#f5f3eb] shadow-[8px_0_30px_rgba(25,40,57,.08)] transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full rtl:max-lg:translate-x-full'}`}
       >
         <div className="flex items-center justify-between px-2">
           <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3">
             <img src="/assets/nulls-logo.png" alt="Nulls" className="h-10 w-10 rounded-[11px]" />
             <span>
-              <strong className="block font-display text-[17px] tracking-[-.03em]">Nulls Report</strong>
-              <span className="block text-[10px] uppercase tracking-[.19em] text-[#aab7c8]">Operations room</span>
+              <strong className="block font-display text-[17px] tracking-[-.03em]">{t('nav.brand')}</strong>
+              <span className="block text-[10px] uppercase tracking-[.19em] text-[#aab7c8]">{t('nav.operationsRoom')}</span>
             </span>
           </Link>
-          <button onClick={() => setMobileOpen(false)} className="rounded-lg p-2 text-[#aab7c8] lg:hidden" aria-label="Close navigation">
+          <button onClick={() => setMobileOpen(false)} className="rounded-lg p-2 text-[#aab7c8] lg:hidden" aria-label={t('nav.closeNav')}>
             <X size={18} />
           </button>
         </div>
 
         <div className="mt-9 px-2 text-[10px] font-bold uppercase tracking-[.18em] text-[#91a1b5]">
-          {isStaff ? 'Staff workspace' : 'Player workspace'}
+          {isStaff ? t('nav.staffWorkspace') : t('nav.playerWorkspace')}
         </div>
         <nav className="mt-2 space-y-1">
           {nav.map(({ href, label, icon: Icon, badge }) => (
@@ -311,13 +361,11 @@ export function AppShell({
           <div className="flex items-center gap-2.5">
             <span className="live-dot h-2.5 w-2.5 rounded-full bg-[#6dd4ad]" />
             <span className="text-[11px] font-bold text-[#d9e1e9]">
-              {isStaff ? 'Moderator tools ready' : 'Private reporter view'}
+              {isStaff ? t('nav.staffReady') : t('nav.privateView')}
             </span>
           </div>
           <p className="mt-2 text-[11px] leading-5 text-[#94a5b9]">
-            {isStaff
-              ? 'Only staff can access the moderation inbox and controls.'
-              : 'Only reports submitted from your account are shown here.'}
+            {isStaff ? t('nav.staffHint') : t('nav.playerHint')}
           </p>
         </div>
 
@@ -327,18 +375,20 @@ export function AppShell({
               <Avatar name={user.displayName} size="md" avatarPath={avatarUrl(user)} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-bold">{user.displayName}</p>
-                <p className="truncate text-[10px] capitalize text-[#aab7c8]">{user.role}</p>
+                <p className="truncate text-[10px] capitalize text-[#aab7c8]">
+                  {user.tag ? `#${user.tag} · ` : ''}{t(`roles.${user.role}`)}
+                </p>
               </div>
               <button
                 onClick={() => navigate('/settings')}
                 className="text-[#aab7c8] hover:text-white"
-                aria-label="Account settings"
+                aria-label={t('nav.settings')}
               >
                 <Settings2 size={16} />
               </button>
             </>
           ) : (
-            <p className="px-2 text-[10px] uppercase tracking-[.16em] text-[#aab7c8]">Loading…</p>
+            <p className="px-2 text-[10px] uppercase tracking-[.16em] text-[#aab7c8]">{t('nav.loading')}</p>
           )}
         </div>
       </aside>
@@ -347,24 +397,24 @@ export function AppShell({
         <button
           className="fixed inset-0 z-30 bg-[#152238]/40 lg:hidden"
           onClick={() => setMobileOpen(false)}
-          aria-label="Close navigation"
+          aria-label={t('nav.closeNav')}
         />
       )}
 
-      <div className="lg:pl-[256px]">
+      <div className="lg:ps-[256px]">
         <header className="sticky top-0 z-20 flex h-[74px] items-center justify-between border-b border-[#e6e2d9] bg-[#f7f5f0]/90 px-5 backdrop-blur-md sm:px-8 lg:px-10">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
               className="rounded-xl border border-[#e2ded5] bg-white p-2.5 text-[#445268] lg:hidden"
-              aria-label="Open navigation"
+              aria-label={t('nav.openNav')}
             >
               <Menu size={18} />
             </button>
             <div className="hidden items-center gap-2 text-xs text-[#858e9b] sm:flex">
               <span className="font-mono text-[11px]">NULLS /</span>
               <span className="font-bold capitalize text-[#2a374b]">
-                {location === '/dashboard' ? 'Overview' : location.replace(/^\//, '').replaceAll('-', ' ')}
+                {location === '/dashboard' ? t('nav.overview') : location.replace(/^\//, '').replaceAll('-', ' ')}
               </span>
             </div>
           </div>
@@ -372,7 +422,7 @@ export function AppShell({
             <Link
               href="/notifications"
               className="relative rounded-xl p-2.5 text-[#697586] transition hover:bg-white hover:text-[#202f46]"
-              aria-label="Notifications"
+              aria-label={t('common.notifications')}
             >
               <Bell size={18} />
               {unread > 0 && (
@@ -386,12 +436,12 @@ export function AppShell({
                 href="/submit"
                 className="flex items-center gap-2 rounded-xl bg-[#ef6358] px-3.5 py-2.5 text-xs font-bold text-white shadow-[0_5px_15px_rgba(239,99,88,.2)]"
               >
-                <Plus size={15} /> New report
+                <Plus size={15} /> {t('nav.newReport')}
               </Link>
             )}
             {isStaff && (
               <span className="hidden items-center gap-2 rounded-xl border border-[#dedbd3] bg-white px-3 py-2.5 text-xs font-bold text-[#536174] sm:flex">
-                <Shield size={14} className="text-[#2e9f91]" /> {user?.role === 'administrator' ? 'Administrator' : 'Moderator'}
+                <Shield size={14} className="text-[#2e9f91]" /> {user?.role === 'administrator' ? t('roles.administrator') : t('roles.moderator')}
               </span>
             )}
           </div>
@@ -403,19 +453,20 @@ export function AppShell({
 }
 
 export function WorkflowStrip({ compact }: { compact?: boolean }) {
+  const { t } = useI18n();
   const steps = [
-    { n: '01', t: 'Submit report', d: 'A ticket is created with its own ID.' },
-    { n: '02', t: 'Moderator verifies', d: 'The issue is checked for validity.' },
-    { n: '03', t: 'Administrator handles', d: 'Verified tickets reach the admin team.' },
-    { n: '04', t: 'Track the outcome', d: 'Status and history stay visible.' },
+    { n: '01', key: 'workflow.submit', detailKey: 'workflow.submitDetail' },
+    { n: '02', key: 'workflow.verify', detailKey: 'workflow.verifyDetail' },
+    { n: '03', key: 'workflow.admin', detailKey: 'workflow.adminDetail' },
+    { n: '04', key: 'workflow.track', detailKey: 'workflow.trackDetail' },
   ];
   return (
     <div className={`grid gap-4 ${compact ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
       {steps.map((step) => (
         <div key={step.n} className="rounded-2xl border border-[#e6e2d9] bg-white p-4">
           <span className="font-mono text-[10px] text-[#ef6358]">{step.n}</span>
-          <strong className="mt-2 block font-display text-[14px] tracking-[-.02em] text-[#253044]">{step.t}</strong>
-          <p className="mt-1 text-[11px] leading-5 text-[#87909c]">{step.d}</p>
+          <strong className="mt-2 block font-display text-[14px] tracking-[-.02em] text-[#253044]">{t(step.key)}</strong>
+          <p className="mt-1 text-[11px] leading-5 text-[#87909c]">{t(step.detailKey)}</p>
         </div>
       ))}
     </div>

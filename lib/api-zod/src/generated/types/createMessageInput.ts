@@ -13,6 +13,8 @@ export interface CreateMessageInput {
      */
   body: string;
   isInternal?: boolean;
+  /** @maxLength 80 */
+  dedupeKey?: string;
   /** @maxItems 10 */
   attachmentIds?: number[];
 }

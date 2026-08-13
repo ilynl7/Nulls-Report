@@ -122,14 +122,14 @@ function startApi() {
     if (apiCrashCount > 5) {
       console.error(
         `\n[dev] api-server exited ${apiCrashCount} times in a row. ` +
-          "Not retrying automatically. Check DATABASE_URL and CLERK_SECRET_KEY in the workspace API Keys.\n",
+          "Not retrying automatically. Check DATABASE_URL (plus DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET for Discord sign-in) in the workspace API Keys.\n",
       );
       return;
     }
     const delay = Math.min(apiCrashCount * 1000, 5000);
     console.log(
       `\n[dev] api-server exited with code ${code}; restarting in ${delay / 1000}s. ` +
-        "Make sure DATABASE_URL and CLERK_SECRET_KEY are set in the workspace API Keys.\n",
+        "Make sure DATABASE_URL (plus DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET for Discord sign-in) is set in the workspace API Keys.\n",
     );
     setTimeout(() => {
       if (!shuttingDown) startApi();

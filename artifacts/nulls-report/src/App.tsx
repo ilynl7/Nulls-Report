@@ -1,11 +1,11 @@
 import { type ReactNode, useEffect } from 'react';
 import { Link, Route, Router, Switch, useLocation } from 'wouter';
-import { useAuth } from '@clerk/react';
 import { PageLoader, Spinner } from '@/components/portal-ui';
 import { usePortalUser } from '@/lib/hooks';
 import { LandingPage } from '@/pages/landing';
 import { AuthPage } from '@/pages/auth';
 import { DashboardPage } from '@/pages/dashboard';
+import { CommunityPage } from '@/pages/community';
 import { SubmitPage } from '@/pages/submit';
 import { MyReportsPage } from '@/pages/my-reports';
 import { ReportDetailPage } from '@/pages/report-detail';
@@ -37,32 +37,29 @@ function AccessDenied({ title, detail }: { title: string; detail: string }) {
   );
 }
 
+/**
+ * Route guard for any authenticated area. An account session is required
+ * (an account can exist without authentication methods — that is fine here;
+ * only report submission enforces a trusted method).
+ */
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { user, isLoading, signedOut } = usePortalUser();
   const [location] = useLocation();
 
-  if (!isLoaded) return <PageLoader />;
-  if (!isSignedIn) {
+  if (isLoading) return <PageLoader />;
+  if (signedOut || !user) {
     return <RedirectTo to={`/auth?returnTo=${encodeURIComponent(location)}`} />;
   }
   return <>{children}</>;
 }
 
 function RequireStaff({ children }: { children: ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { user, isLoading, signedOut } = usePortalUser();
   const [location] = useLocation();
-  const { user, isLoading } = usePortalUser();
 
-  if (!isLoaded) return <PageLoader />;
-  if (!isSignedIn) {
+  if (isLoading) return <PageLoader />;
+  if (signedOut || !user) {
     return <RedirectTo to={`/auth?returnTo=${encodeURIComponent(location)}`} />;
-  }
-  if (isLoading || !user) {
-    return (
-      <div className="noise flex min-h-[100dvh] items-center justify-center bg-[#f7f5f0]">
-        <Spinner label="Checking access…" />
-      </div>
-    );
   }
   if (user.role === 'user') {
     return (
@@ -76,20 +73,12 @@ function RequireStaff({ children }: { children: ReactNode }) {
 }
 
 function RequireAdmin({ children }: { children: ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { user, isLoading, signedOut } = usePortalUser();
   const [location] = useLocation();
-  const { user, isLoading } = usePortalUser();
 
-  if (!isLoaded) return <PageLoader />;
-  if (!isSignedIn) {
+  if (isLoading) return <PageLoader />;
+  if (signedOut || !user) {
     return <RedirectTo to={`/auth?returnTo=${encodeURIComponent(location)}`} />;
-  }
-  if (isLoading || !user) {
-    return (
-      <div className="noise flex min-h-[100dvh] items-center justify-center bg-[#f7f5f0]">
-        <Spinner label="Checking access…" />
-      </div>
-    );
   }
   if (user.role !== 'administrator') {
     return (
@@ -115,6 +104,11 @@ export default function App() {
         <Route path="/dashboard">
           <RequireAuth>
             <DashboardPage />
+          </RequireAuth>
+        </Route>
+        <Route path="/reports">
+          <RequireAuth>
+            <CommunityPage />
           </RequireAuth>
         </Route>
         <Route path="/submit">

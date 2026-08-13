@@ -24,11 +24,26 @@ export const UserRole = {
 
 export type UserPreferences = { [key: string]: unknown };
 
+export type AuthMethodProvider = typeof AuthMethodProvider[keyof typeof AuthMethodProvider];
+
+
+export const AuthMethodProvider = {
+  discord: 'discord',
+  nulls_connect: 'nulls_connect',
+} as const;
+
+export interface AuthMethod {
+  provider: AuthMethodProvider;
+  name: string;
+  /** @nullable */
+  label: string | null;
+  linkedAt: string;
+}
+
 export interface User {
   id: number;
-  clerkUserId: string;
   /** @nullable */
-  email?: string | null;
+  tag: string | null;
   displayName: string;
   role: UserRole;
   blocked?: boolean;
@@ -38,25 +53,101 @@ export interface User {
   nullsConnectName?: string | null;
   /** @nullable */
   avatarPath?: string | null;
+  /** @nullable */
+  discordId?: string | null;
+  /** @nullable */
+  discordUsername?: string | null;
   preferences: UserPreferences;
+  authMethods: AuthMethod[];
+  hasTrustedAuth: boolean;
   createdAt: string;
 }
+
+export type ReportSummaryIssueType = typeof ReportSummaryIssueType[keyof typeof ReportSummaryIssueType];
+
+
+export const ReportSummaryIssueType = {
+  community: 'community',
+  game: 'game',
+} as const;
+
+export type ReportSummaryVerification = typeof ReportSummaryVerification[keyof typeof ReportSummaryVerification];
+
+
+export const ReportSummaryVerification = {
+  unverified: 'unverified',
+  verified: 'verified',
+  rejected: 'rejected',
+} as const;
+
+export type ReportSummaryStaffStage = typeof ReportSummaryStaffStage[keyof typeof ReportSummaryStaffStage];
+
+
+export const ReportSummaryStaffStage = {
+  moderator_review: 'moderator_review',
+  administrator_review: 'administrator_review',
+  resolution: 'resolution',
+} as const;
+
+export type ReportSummaryVisibility = typeof ReportSummaryVisibility[keyof typeof ReportSummaryVisibility];
+
+
+export const ReportSummaryVisibility = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+export type ReportSummaryEffectiveVisibility = typeof ReportSummaryEffectiveVisibility[keyof typeof ReportSummaryEffectiveVisibility];
+
+
+export const ReportSummaryEffectiveVisibility = {
+  public: 'public',
+  private: 'private',
+  hidden: 'hidden',
+  restricted: 'restricted',
+} as const;
+
+export type ReportSummaryPriority = typeof ReportSummaryPriority[keyof typeof ReportSummaryPriority];
+
+
+export const ReportSummaryPriority = {
+  normal: 'normal',
+  high: 'high',
+  critical: 'critical',
+} as const;
 
 export interface ReportSummary {
   id: number;
   ticketNumber: string;
   ownerId: number;
   ownerName: string;
+  /** @nullable */
+  ownerTag: string | null;
+  anonymous: boolean;
   game: string;
   category: string;
   subtype: string;
+  issueType: ReportSummaryIssueType;
   title: string;
   status: string;
-  priority: string;
+  verification: ReportSummaryVerification;
+  staffStage: ReportSummaryStaffStage;
+  visibility: ReportSummaryVisibility;
+  effectiveVisibility: ReportSummaryEffectiveVisibility;
+  hidden: boolean;
+  /** @nullable */
+  hiddenReason?: string | null;
+  /** @nullable */
+  verifiedByName: string | null;
+  /** @nullable */
+  verifiedAt: string | null;
+  priority: ReportSummaryPriority;
   allowUserMessages: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ReportDetailFields = { [key: string]: unknown };
 
 export interface HistoryItem {
   id: number;
@@ -65,6 +156,16 @@ export interface HistoryItem {
   fromStatus?: string | null;
   /** @nullable */
   toStatus?: string | null;
+  /** @nullable */
+  fromVerification?: string | null;
+  /** @nullable */
+  toVerification?: string | null;
+  /** @nullable */
+  fromValue?: string | null;
+  /** @nullable */
+  toValue?: string | null;
+  /** @nullable */
+  actorRole?: string | null;
   /** @nullable */
   details?: string | null;
   /** @nullable */
@@ -81,17 +182,28 @@ export interface Attachment {
   createdAt: string;
 }
 
-export type ReportDetail = ReportSummary & {
+export type ReportDetail = ReportSummary & ({
   details: string;
+  fields: ReportDetailFields;
+  /** @nullable */
+  verifiedByName: string | null;
+  /** @nullable */
+  verifiedAt: string | null;
+  /** @nullable */
+  hiddenByName: string | null;
+  /** @nullable */
+  hiddenAt: string | null;
   history: HistoryItem[];
   attachments: Attachment[];
-};
+});
 
 export interface Message {
   id: number;
   reportId: number;
   authorId: number;
   authorName: string;
+  /** @nullable */
+  authorRole?: string | null;
   body: string;
   isInternal: boolean;
   attachments: Attachment[];
@@ -120,19 +232,45 @@ export const CreateReportInputGame = {
   'nulls-royale-infinity': 'nulls-royale-infinity',
 } as const;
 
-export type CreateReportInputCategory = typeof CreateReportInputCategory[keyof typeof CreateReportInputCategory];
+export type CreateReportInputIssueType = typeof CreateReportInputIssueType[keyof typeof CreateReportInputIssueType];
 
 
-export const CreateReportInputCategory = {
-  bug: 'bug',
-  account: 'account',
-  server: 'server',
+export const CreateReportInputIssueType = {
+  community: 'community',
+  game: 'game',
+} as const;
+
+export type CreateReportInputFields = { [key: string]: unknown };
+
+export type CreateReportInputVisibility = typeof CreateReportInputVisibility[keyof typeof CreateReportInputVisibility];
+
+
+export const CreateReportInputVisibility = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+export type CreateReportInputPriority = typeof CreateReportInputPriority[keyof typeof CreateReportInputPriority];
+
+
+export const CreateReportInputPriority = {
+  normal: 'normal',
+  high: 'high',
+  critical: 'critical',
 } as const;
 
 export interface CreateReportInput {
   game: CreateReportInputGame;
-  category: CreateReportInputCategory;
-  /** @minLength 1 */
+  issueType?: CreateReportInputIssueType;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  category: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
   subtype: string;
   /**
      * @minLength 3
@@ -144,7 +282,10 @@ export interface CreateReportInput {
      * @maxLength 10000
      */
   details: string;
+  fields?: CreateReportInputFields;
   anonymous: boolean;
+  visibility?: CreateReportInputVisibility;
+  priority?: CreateReportInputPriority;
   attachmentIds?: number[];
 }
 
@@ -152,13 +293,11 @@ export type UpdateReportInputStatus = typeof UpdateReportInputStatus[keyof typeo
 
 
 export const UpdateReportInputStatus = {
-  submitted: 'submitted',
-  verifying: 'verifying',
-  rejected: 'rejected',
-  verified: 'verified',
-  forwarded: 'forwarded',
-  waiting_for_user: 'waiting_for_user',
+  open: 'open',
+  under_review: 'under_review',
+  awaiting_admin: 'awaiting_admin',
   in_progress: 'in_progress',
+  waiting_for_user: 'waiting_for_user',
   resolved: 'resolved',
   closed: 'closed',
 } as const;
@@ -167,10 +306,9 @@ export type UpdateReportInputPriority = typeof UpdateReportInputPriority[keyof t
 
 
 export const UpdateReportInputPriority = {
-  low: 'low',
   normal: 'normal',
   high: 'high',
-  urgent: 'urgent',
+  critical: 'critical',
 } as const;
 
 export interface UpdateReportInput {
@@ -188,6 +326,24 @@ export interface UpdateReportInput {
   details?: string;
 }
 
+export type UpdateReportVisibilityInputVisibility = typeof UpdateReportVisibilityInputVisibility[keyof typeof UpdateReportVisibilityInputVisibility];
+
+
+export const UpdateReportVisibilityInputVisibility = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+/**
+ * At least one of visibility/hidden is required.
+ */
+export interface UpdateReportVisibilityInput {
+  visibility?: UpdateReportVisibilityInputVisibility;
+  hidden?: boolean;
+  /** @maxLength 500 */
+  reason?: string;
+}
+
 export interface VerifyReportInput {
   verified: boolean;
   /** @maxLength 2000 */
@@ -201,6 +357,8 @@ export interface CreateMessageInput {
      */
   body: string;
   isInternal?: boolean;
+  /** @maxLength 80 */
+  dedupeKey?: string;
   /** @maxItems 10 */
   attachmentIds?: number[];
 }
@@ -265,11 +423,6 @@ export interface UpdateUserInput {
      * @maxLength 80
      */
   displayName?: string;
-  /**
-     * @maxLength 200
-     * @nullable
-     */
-  nullsConnectId?: string | null;
   preferences?: UpdateUserInputPreferences;
 }
 
@@ -284,6 +437,11 @@ export type UnauthorizedResponse = ErrorEnvelope;
 export type ForbiddenResponse = ErrorEnvelope;
 
 /**
+ * Service not configured
+ */
+export type ServiceUnavailableResponse = ErrorEnvelope;
+
+/**
  * Invalid request
  */
 export type BadRequestResponse = ErrorEnvelope;
@@ -293,10 +451,36 @@ export type BadRequestResponse = ErrorEnvelope;
  */
 export type NotFoundResponse = ErrorEnvelope;
 
+export type DiscordOauthStartParams = {
+returnTo?: string;
+};
+
 export type ListReportsParams = {
+scope?: ListReportsScope;
+game?: string;
+issueType?: ListReportsIssueType;
+category?: string;
+priority?: string;
 status?: string;
+verification?: string;
 search?: string;
 };
+
+export type ListReportsScope = typeof ListReportsScope[keyof typeof ListReportsScope];
+
+
+export const ListReportsScope = {
+  community: 'community',
+  mine: 'mine',
+} as const;
+
+export type ListReportsIssueType = typeof ListReportsIssueType[keyof typeof ListReportsIssueType];
+
+
+export const ListReportsIssueType = {
+  community: 'community',
+  game: 'game',
+} as const;
 
 export type ClearPortalUsers200 = { [key: string]: unknown };
 

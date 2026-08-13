@@ -1,7 +1,6 @@
 # Nulls Report — Docker Edition
 
-A special edition for **Node.js Docker images** (or any plain Node.js host): the
-entire portal — Express API, Clerk authentication, every route, database access,
+A special edition for **Node.js Docker images** (or any plain Node.js host):the entire portal — Express API, Discord + Nulls Connect authentication, every route, database access,
 attachment storage, and the prebuilt web app — is bundled into **one single
 `server.js` file**. There are no other runtime files: no `node_modules`, no
 worker files, no build step.
@@ -68,8 +67,9 @@ cd nulls-report-docker-edition
 # 2. Create .env with your values (or set real env vars instead)
 cat > .env <<'EOF'
 DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
-CLERK_SECRET_KEY=sk_test_...
-CLERK_PUBLISHABLE_KEY=pk_test_...
+# Optional: enables "Continue with Discord" (Nulls Connect sign-in works without it)
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
 EOF
 
 # 3a. Direct run (any Node.js >= 20.11)
@@ -87,13 +87,12 @@ Open `http://<your-host>:<public-port>/` — the portal is live.
 ## Environment variables
 
 Everything is configured at **runtime** — nothing is baked into the build, so
-one artifact works for any database and any Clerk keys.
+one artifact works for any database.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | ✅ | Postgres connection string, e.g. `postgres://user:pass@host:5432/db?sslmode=require`. Timescale-style URLs are handled automatically. |
-| `CLERK_SECRET_KEY` | ✅ | Clerk backend secret (`sk_test_…` / `sk_live_…`). |
-| `CLERK_PUBLISHABLE_KEY` | ✅ | Clerk frontend publishable key (`pk_test_…` / `pk_live_…`). Served to the browser at runtime via `GET /api/config`. |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | – | Optional — enables **Continue with Discord** (OAuth app at discord.com/developers). Without them the Discord button is disabled; Nulls Connect still works. |
 | `PORT` | – | Port to listen on (default `8080`). Your panel may inject this automatically. |
 | `STATIC_DIR` | – | Where the web build lives (default `./dist` next to `server.js`). |
 | `S3_BUCKET` or `R2_BUCKET` | – | Enables S3-compatible attachment storage (AWS S3, Cloudflare R2, Backblaze, MinIO…). |
@@ -131,15 +130,14 @@ and `.env` relative to `server.js`, so the current directory doesn't have to be
 the archive folder — but attachments without S3 default to the current
 directory.
 
-**Error about `DATABASE_URL must be set` (or Clerk errors on `/api/config`).**
-The required env vars are missing. Set `DATABASE_URL`, `CLERK_SECRET_KEY` and
-`CLERK_PUBLISHABLE_KEY` (env or `.env` file) and restart. The server refuses to
-start without a database URL — that's intentional.
+**Error about `DATABASE_URL must be set`.**
+The required env var is missing. Set `DATABASE_URL` (env or `.env` file) and
+restart. The server refuses to start without a database URL — that's intentional.
 
-**Blank page / "Authentication is not configured".**
-The server is running but `GET /api/config` returned no publishable key — set
-`CLERK_PUBLISHABLE_KEY` (server-side name) or `VITE_CLERK_PUBLISHABLE_KEY` and
-restart.
+**"Discord isn't wired up yet" on the auth page.**
+The server is running but `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` are not
+set, so the Discord button is disabled. Add them and restart — or sign in with
+Nulls Connect, which needs no extra keys.
 
 **Logs look like JSON lines.** That's expected — the edition logs plain JSON to
 stdout (great with `docker logs`). Set `LOG_LEVEL=debug` for more detail.
@@ -148,15 +146,12 @@ stdout (great with `docker logs`). Set `LOG_LEVEL=debug` for more detail.
 
 ## First-run notes
 
-- The **first account** that signs up in a fresh database becomes the
-  **administrator** automatically.
-- Pre-provisioned trial accounts for quick evaluation:
-
-  | Role | Email | Password |
-  | --- | --- | --- |
-  | Reporter | `trialreporter@gmail.com` | `trialreporter` |
-  | Moderator | `trialmoderator@gmail.com` | `trialmod` |
-  | Administrator | `trialadministrator@gmail.com` | `trialadministrator` |
+- There are **no registration forms or trial accounts**. Accounts are created
+  automatically on the first sign-in through **Discord** or **Nulls Connect**,
+  and each account gets a permanent public tag (`#A7K4P2`) generated for it.
+- The **first account** created in a fresh database becomes the
+  **administrator** automatically. To test the other roles, sign in with two
+  more provider accounts and promote/demote them from the Admin tab.
 
 ---
 
@@ -177,7 +172,7 @@ docker build -f editions/docker/Dockerfile -t nulls-report .   # or compose
 | --- | --- |
 | `/` | The web app (served from `dist/`, SPA routing included) |
 | `/api/healthz` | Health check — returns `{"status":"ok"}` |
-| `/api/config` | Runtime config for the frontend (Clerk publishable key) |
+| `/api/config` | Runtime config for the frontend (e.g. whether Discord sign-in is configured) |
 | `/api/*` | Everything else — reports, tickets, chat, notifications, admin, storage, Nulls Connect |
 
 ## Upgrading

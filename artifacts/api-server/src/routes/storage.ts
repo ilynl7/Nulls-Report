@@ -4,9 +4,9 @@ import express, { Router } from "express";
 import { RequestUploadUrlBody } from "@workspace/api-zod";
 import { and, eq } from "drizzle-orm";
 import { db, pendingUploadsTable, reportAttachmentsTable } from "@workspace/db";
-import { requireAuth } from "../lib/auth";
+import { assertTrustedAuth, requireAuth } from "../lib/auth";
 import { asyncHandler, httpError, portalUserOf } from "../lib/http";
-import { getReportEntity } from "../lib/access";
+import { assertCanViewReport, getReportEntity } from "../lib/access";
 import {
   createUploadUrl,
   localUploadExists,
@@ -32,6 +32,9 @@ router.post(
   requireAuth(),
   asyncHandler(async (req, res) => {
     const viewer = portalUserOf(req);
+    // Upload slots are only granted to accounts with a trusted authentication
+    // method — an unauthenticated account cannot stage files for a report.
+    await assertTrustedAuth(viewer);
     const parsed = RequestUploadUrlBody.safeParse(req.body);
     if (!parsed.success) {
       throw httpError(400, "Invalid upload request");
@@ -165,9 +168,10 @@ router.get(
     }
 
     const report = await getReportEntity(attachment.reportId);
-    if (viewer.role === "user" && report.ownerId !== viewer.id) {
-      throw httpError(403, "You do not have access to this attachment");
-    }
+    // The report's effective visibility decides who can fetch its files:
+    // public reports (and their attachments) are community-visible; private,
+    // hidden and risk-restricted reports are reporter + staff only.
+    assertCanViewReport(report, viewer);
 
     const stream = await objectStream(objectPath);
     if (stream.kind === "redirect") {

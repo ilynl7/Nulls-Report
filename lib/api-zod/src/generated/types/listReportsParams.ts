@@ -5,8 +5,16 @@
  * Nulls Report production portal API
  * OpenAPI spec version: 0.2.0
  */
+import type { ListReportsIssueType } from './listReportsIssueType';
+import type { ListReportsScope } from './listReportsScope';
 
 export type ListReportsParams = {
+scope?: ListReportsScope;
+game?: string;
+issueType?: ListReportsIssueType;
+category?: string;
+priority?: string;
 status?: string;
+verification?: string;
 search?: string;
 };

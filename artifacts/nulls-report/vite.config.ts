@@ -114,7 +114,7 @@ function apiServerPlugin(): Plugin {
           if (child === thisChild) child = null;
           if (!signal) {
             server.config.logger.error(
-              `[api-server] exited with code ${code}. Make sure DATABASE_URL and CLERK_SECRET_KEY are set in the workspace API Keys.`,
+              `[api-server] exited with code ${code}. Make sure DATABASE_URL is set in the workspace API Keys.`,
             );
           }
         });
@@ -217,8 +217,8 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname),
   // Load env from the monorepo root so keys written to the root .env.local
-  // (e.g. by `clerk init` or the platform) reach the app. Real environment
-  // variables injected by the platform always take precedence over files.
+  // (e.g. by the platform) reach the app. Real environment variables
+  // injected by the platform always take precedence over files.
   envDir: path.resolve(import.meta.dirname, '..', '..'),
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
@@ -233,8 +233,7 @@ export default defineConfig({
       strict: true,
     },
     proxy: {
-      // Keep /api/__clerk out of the proxy: in production it is served by the
-      // API deployment; in dev Clerk is reached directly from the browser.
+      // Proxy API calls to the API server in development.
       '/api': {
         target: apiProxyTarget,
         changeOrigin: true,

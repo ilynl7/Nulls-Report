@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { clerkClient } from "@clerk/express";
 import { UpdatePortalUserRoleBody, UpdatePortalUserBlockBody } from "@workspace/api-zod";
 import {
+  authIdentitiesTable,
   db,
   pendingUploadsTable,
   portalCountersTable,
@@ -11,6 +11,8 @@ import {
   reportAttachmentsTable,
   reportHistoryTable,
   reportMessagesTable,
+  type AuthIdentity,
+  type PortalUser,
 } from "@workspace/db";
 import { desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { requireAdmin, requireAuth } from "../lib/auth";
@@ -19,36 +21,21 @@ import { userToJson } from "../lib/serialize";
 
 const router = Router();
 
-/**
- * Session tokens don't carry email addresses, so backfill emails for every
- * portal user from the Clerk API before listing. Keeps the admin user list
- * accurate even for accounts that signed in before the backfill existed.
- */
-async function backfillEmails(users: Array<{ id: number; clerkUserId: string | null; email: string | null }>) {
-  const missing = users.filter((u) => !u.email && u.clerkUserId);
-  if (missing.length === 0 || !process.env.CLERK_SECRET_KEY) {
-    return;
+/** Loads identities for a set of users in one query (for the admin list). */
+async function identitiesFor(users: PortalUser[]): Promise<Map<number, AuthIdentity[]>> {
+  const ids = users.map((u) => u.id);
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(authIdentitiesTable)
+    .where(inArray(authIdentitiesTable.portalUserId, ids));
+  const byUser = new Map<number, AuthIdentity[]>();
+  for (const row of rows) {
+    const list = byUser.get(row.portalUserId) ?? [];
+    list.push(row);
+    byUser.set(row.portalUserId, list);
   }
-  try {
-    const clerkUsers = await clerkClient.users.getUserList({ limit: 500 });
-    const emailByClerkId = new Map(
-      clerkUsers.data
-        .map((u) => [u.id, u.primaryEmailAddress?.emailAddress ?? null] as const)
-        .filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
-    );
-    for (const user of missing) {
-      const email = emailByClerkId.get(user.clerkUserId ?? "");
-      if (email) {
-        await db
-          .update(portalUsersTable)
-          .set({ email })
-          .where(eq(portalUsersTable.id, user.id));
-      }
-    }
-  } catch (err) {
-    // Non-fatal: the list still loads, emails just stay empty.
-    console.error("[admin] failed to backfill emails from Clerk:", err);
-  }
+  return byUser;
 }
 
 router.get(
@@ -65,7 +52,7 @@ router.get(
           .where(
             or(
               ilike(portalUsersTable.displayName, `%${search}%`),
-              ilike(portalUsersTable.email, `%${search}%`),
+              ilike(portalUsersTable.tag, `%${search}%`),
             )!,
           )
           .orderBy(desc(portalUsersTable.createdAt))
@@ -74,12 +61,8 @@ router.get(
           .from(portalUsersTable)
           .orderBy(desc(portalUsersTable.createdAt));
 
-    await backfillEmails(users);
-    const refreshed =
-      users.some((u) => !u.email) && process.env.CLERK_SECRET_KEY
-        ? await db.select().from(portalUsersTable).orderBy(desc(portalUsersTable.createdAt))
-        : users;
-    res.json(refreshed.map(userToJson));
+    const identities = await identitiesFor(users);
+    res.json(users.map((user) => userToJson(user, identities.get(user.id) ?? [])));
   }),
 );
 
@@ -110,7 +93,8 @@ router.patch(
       .set({ role: parsed.data.role })
       .where(eq(portalUsersTable.id, targetId))
       .returning();
-    res.json(userToJson(updated));
+    const identities = await identitiesFor([updated]);
+    res.json(userToJson(updated, identities.get(updated.id) ?? []));
   }),
 );
 
@@ -141,7 +125,8 @@ router.patch(
       .set({ blocked: parsed.data.blocked })
       .where(eq(portalUsersTable.id, targetId))
       .returning();
-    res.json(userToJson(updated));
+    const identities = await identitiesFor([updated]);
+    res.json(userToJson(updated, identities.get(updated.id) ?? []));
   }),
 );
 

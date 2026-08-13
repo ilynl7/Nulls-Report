@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { AlertTriangle, Ban, Search, ShieldCheck, Trash2, Users, X } from 'lucide-react';
 import { Avatar, AppShell, ErrorState, PageEnter, PageHeading, Spinner } from '@/components/portal-ui';
 import { useNotifications, usePortalUser } from '@/lib/hooks';
+import { useI18n } from '@/lib/i18n';
 import { apiErrorMessage, API_KEYS, avatarUrl, queryClient } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
 
@@ -26,9 +27,16 @@ type ConfirmAction =
   | { kind: 'clear' }
   | null;
 
+function authSummary(m: { authMethods?: Array<{ name: string }> }, noneLabel: string): string {
+  const methods = m.authMethods ?? [];
+  if (methods.length === 0) return noneLabel;
+  return methods.map((a) => a.name).join(' + ');
+}
+
 export function AdminPage() {
   const { user, isLoading: userLoading } = usePortalUser();
   const { unread } = useNotifications();
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [confirm, setConfirm] = useState<ConfirmAction>(null);
@@ -59,7 +67,9 @@ export function AdminPage() {
     return list.filter(
       (m) =>
         m.displayName.toLowerCase().includes(needle) ||
-        (m.email ?? '').toLowerCase().includes(needle) ||
+        (m.discordUsername ?? '').toLowerCase().includes(needle) ||
+        (m.nullsConnectId ?? '').toLowerCase().includes(needle) ||
+        (m.authMethods ?? []).some((a) => `${a.name} ${a.label ?? ''}`.toLowerCase().includes(needle)) ||
         m.role.includes(needle) ||
         String(m.id) === needle,
     );
@@ -85,7 +95,7 @@ export function AdminPage() {
     setBusyId(targetId);
     try {
       await updateRole.mutateAsync({ id: targetId, data: { role: role as RoleUpdateInput['role'] } });
-      toast.success('Role updated');
+      toast.success(t('admin.roleUpdated'));
     } catch (err) {
       toast.error(apiErrorMessage(err));
     } finally {
@@ -97,7 +107,7 @@ export function AdminPage() {
     setBusyId(targetId);
     try {
       await updateBlock.mutateAsync({ id: targetId, data: { blocked } });
-      toast.success(blocked ? 'Account blocked' : 'Account unblocked');
+      toast.success(blocked ? t('admin.accountBlocked') : t('admin.accountUnblocked'));
     } catch (err) {
       toast.error(apiErrorMessage(err));
     } finally {
@@ -110,7 +120,7 @@ export function AdminPage() {
     setBusyId(confirm.memberId);
     try {
       await deleteUser.mutateAsync({ id: confirm.memberId });
-      toast.success(`${confirm.name} removed from the portal`);
+      toast.success(t('admin.userRemoved', { name: confirm.name }));
       setConfirm(null);
     } catch (err) {
       toast.error(apiErrorMessage(err));
@@ -124,7 +134,7 @@ export function AdminPage() {
     try {
       const res = await clearUsers.mutateAsync({ data: { confirm: true } });
       toast.success(
-        `User database cleared — ${res.users ?? 0} accounts, ${res.reports ?? 0} reports removed`,
+        t('admin.dbCleared', { users: Number(res.users ?? 0), reports: Number(res.reports ?? 0) }),
       );
       setConfirm(null);
       setClearTyped('');
@@ -142,9 +152,9 @@ export function AdminPage() {
     <AppShell user={user} unread={unread} inboxCount={0}>
       <PageEnter>
         <PageHeading
-          eyebrow="Administration / Users"
-          title="User management"
-          detail="Search accounts, assign roles, block or remove members. Users report, moderators verify, administrators handle and manage."
+          eyebrow={t('nav.admin') + ' / Users'}
+          title={t('admin.users')}
+          detail={t('admin.usersDetail')}
         />
 
         {/* Search + toolbar */}
@@ -154,7 +164,7 @@ export function AdminPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, email, role or ID…"
+              placeholder={t('admin.searchPlaceholder')}
               className="h-11 w-full rounded-xl border border-[#e6e2d9] bg-white pl-9 pr-9 text-xs outline-none focus:border-[#ef6358]"
             />
             {query && (
@@ -175,7 +185,7 @@ export function AdminPage() {
         <div className="overflow-hidden rounded-2xl border border-[#e6e2d9] bg-white">
           <div className="flex items-center justify-between border-b border-[#eeeae2] px-4 py-3.5 sm:px-5">
             <span className="flex items-center gap-2 text-xs font-bold text-[#455267]">
-              <Users size={14} className="text-[#2e9f91]" /> Portal users
+              <Users size={14} className="text-[#2e9f91]" /> {t('admin.portalUsers')}
             </span>
             <span className="font-mono text-[10px] text-[#a0a7af]">enforced on the API</span>
           </div>
@@ -199,19 +209,19 @@ export function AdminPage() {
                       <div className="min-w-0">
                         <p className="flex flex-wrap items-center gap-2 truncate text-[13px] font-bold text-[#2d394b]">
                           {member.displayName}
-                          {isSelf && <span className="rounded bg-[#f1eee7] px-1.5 py-0.5 text-[9px] font-bold text-[#8a94a1]">you</span>}
+                          {isSelf && <span className="rounded bg-[#f1eee7] px-1.5 py-0.5 text-[9px] font-bold text-[#8a94a1]">{t('common.you')}</span>}
                           {member.blocked && (
                             <span className="flex items-center gap-1 rounded bg-[#fdecec] px-1.5 py-0.5 text-[9px] font-bold text-[#b03030]">
-                              <Ban size={9} /> Blocked
+                              <Ban size={9} /> {t('admin.blocked')}
                             </span>
                           )}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-[#89929f]">
-                          {member.email ?? 'no email'} · joined {timeAgo(member.createdAt)}
+                          {authSummary(member, t('settings.noAuth'))} · {timeAgo(member.createdAt)}
                         </p>
                         {member.nullsConnectId && (
                           <p className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-[#2e9f91]">
-                            <ShieldCheck size={11} /> Nulls Connect: {member.nullsConnectId}
+                            <ShieldCheck size={11} /> {t('admin.nullConnect', { id: member.nullsConnectId })}
                           </p>
                         )}
                       </div>
@@ -225,7 +235,7 @@ export function AdminPage() {
                         className="h-9 w-full rounded-lg border border-[#e6e2d9] bg-white px-2.5 text-[11px] font-bold text-[#536174] outline-none focus:border-[#ef6358] disabled:opacity-50 sm:w-36"
                       >
                         {ROLES.map((role) => (
-                          <option key={role.value} value={role.value}>{role.label}</option>
+                          <option key={role.value} value={role.value}>{t(`roles.${role.value}`)}</option>
                         ))}
                       </select>
                       {!isSelf && (
@@ -239,14 +249,14 @@ export function AdminPage() {
                                 : 'border-[#e4e0d7] text-[#6a7584] hover:border-[#ca4e44] hover:text-[#ca4e44]'
                             }`}
                           >
-                            <Ban size={12} /> {member.blocked ? 'Unblock' : 'Block'}
+                            <Ban size={12} /> {member.blocked ? t('admin.unblock') : t('admin.block')}
                           </button>
                           <button
                             onClick={() => setConfirm({ kind: 'remove', memberId: member.id, name: member.displayName })}
                             disabled={busyId === member.id}
                             className="flex h-9 items-center gap-1.5 rounded-lg border border-[#e4e0d7] px-3 text-[11px] font-bold text-[#6a7584] transition hover:border-[#ca4e44] hover:bg-[#fff5f3] hover:text-[#ca4e44] disabled:opacity-50"
                           >
-                            <Trash2 size={12} /> Remove
+                            <Trash2 size={12} /> {t('admin.remove')}
                           </button>
                         </>
                       )}
@@ -261,26 +271,21 @@ export function AdminPage() {
         {/* Danger zone */}
         <section className="mt-6 rounded-2xl border border-[#efc9c4] bg-[#fff5f3] p-5">
           <h2 className="flex items-center gap-2 font-display text-[16px] font-bold tracking-[-.02em] text-[#a53a32]">
-            <AlertTriangle size={16} /> Danger zone
+            <AlertTriangle size={16} /> {t('admin.dangerZone')}
           </h2>
           <p className="mt-2 max-w-2xl text-[11px] leading-5 text-[#b0605a]">
-            Clearing the user database removes every account, report, message, attachment and
-            notification from the portal. This cannot be undone — the next person to sign up
-            becomes the first (administrator) account again.
+            {t('admin.clearDbDetail')}
           </p>
           <button
             onClick={() => setConfirm({ kind: 'clear' })}
             className="mt-4 flex items-center gap-2 rounded-xl bg-[#ca4e44] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#b83f37]"
           >
-            <Trash2 size={14} /> Clear user database
+            <Trash2 size={14} /> {t('admin.clearDb')}
           </button>
         </section>
 
         <div className="mt-5 rounded-2xl border border-[#dceae6] bg-[#f1faf7] p-5 text-xs leading-6 text-[#518b83]">
-          <strong className="text-[#275c56]">Role guide.</strong> Users submit reports and track their
-          own tickets. Moderators review, verify, reject and forward tickets. Administrators handle
-          verified tickets, resolve and close them, and manage users. Blocking a user immediately
-          revokes portal access; removing a user deletes their account and all their data.
+          {t('admin.roleGuide')}
         </div>
       </PageEnter>
 

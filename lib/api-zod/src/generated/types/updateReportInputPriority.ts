@@ -10,8 +10,7 @@ export type UpdateReportInputPriority = typeof UpdateReportInputPriority[keyof t
 
 
 export const UpdateReportInputPriority = {
-  low: 'low',
   normal: 'normal',
   high: 'high',
-  urgent: 'urgent',
+  critical: 'critical',
 } as const;

@@ -10,13 +10,11 @@ export type UpdateReportInputStatus = typeof UpdateReportInputStatus[keyof typeo
 
 
 export const UpdateReportInputStatus = {
-  submitted: 'submitted',
-  verifying: 'verifying',
-  rejected: 'rejected',
-  verified: 'verified',
-  forwarded: 'forwarded',
-  waiting_for_user: 'waiting_for_user',
+  open: 'open',
+  under_review: 'under_review',
+  awaiting_admin: 'awaiting_admin',
   in_progress: 'in_progress',
+  waiting_for_user: 'waiting_for_user',
   resolved: 'resolved',
   closed: 'closed',
 } as const;

@@ -4,12 +4,14 @@ import { toast } from 'sonner';
 import { Bell, Check, FileText } from 'lucide-react';
 import { AppShell, EmptyState, ErrorState, PageEnter, PageHeading, Spinner } from '@/components/portal-ui';
 import { useNotifications, usePortalUser } from '@/lib/hooks';
+import { useI18n } from '@/lib/i18n';
 import { apiErrorMessage, API_KEYS, queryClient } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
 
 export function NotificationsPage() {
   const { user, isLoading: userLoading } = usePortalUser();
   const { notifications, unread, isLoading, refetch } = useNotifications();
+  const { t } = useI18n();
   const markRead = useMarkNotificationRead({
     mutation: {
       onSuccess: () => {
@@ -39,7 +41,7 @@ export function NotificationsPage() {
       <PageEnter>
         <PageHeading
           eyebrow="Account / Notifications"
-          title="Notifications"
+          title={t('notif.title')}
           detail="Status changes, replies, verifications and forwarding events tied to your account."
         />
 
@@ -94,8 +96,8 @@ export function NotificationsPage() {
           ) : (
             <EmptyState
               icon={FileText}
-              title="No notifications yet"
-              detail="Updates about your reports will land here — submissions, status changes, replies and more."
+              title={t('notif.empty')}
+              detail={t('notif.emptyDetail')}
             />
           )}
         </div>

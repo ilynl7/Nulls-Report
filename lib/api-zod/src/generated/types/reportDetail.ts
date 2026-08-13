@@ -7,10 +7,20 @@
  */
 import type { Attachment } from './attachment';
 import type { HistoryItem } from './historyItem';
+import type { ReportDetailFields } from './reportDetailFields';
 import type { ReportSummary } from './reportSummary';
 
-export type ReportDetail = ReportSummary & {
+export type ReportDetail = ReportSummary & ({
   details: string;
+  fields: ReportDetailFields;
+  /** @nullable */
+  verifiedByName: string | null;
+  /** @nullable */
+  verifiedAt: Date | null;
+  /** @nullable */
+  hiddenByName: string | null;
+  /** @nullable */
+  hiddenAt: Date | null;
   history: HistoryItem[];
   attachments: Attachment[];
-};
+});

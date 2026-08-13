@@ -28,6 +28,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/logout:
+    post:
+      operationId: logoutPortalSession
+      tags: [account]
+      summary: End the current session
+      responses:
+        "204":
+          description: Signed out
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/methods/{provider}/disconnect:
+    post:
+      operationId: disconnectAuthMethod
+      tags: [account]
+      summary: Disconnect a linked authentication method
+      description: >
+        Removes the provider link from the account. The account itself is
+        never deleted. The client warns when this is the only method.
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [discord, nulls_connect]
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/discord/start:
+    get:
+      operationId: discordOauthStart
+      tags: [account]
+      summary: Start Discord OAuth (browser redirect)
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "302":
+          description: Redirect to Discord
   /me:
     get:
       operationId: getCurrentUser
@@ -67,9 +116,45 @@ paths:
     get:
       operationId: listReports
       tags: [reports]
-      summary: List reports visible to the signed-in user
+      summary: List reports visible to the signed-in user (community feed or own)
+      description: >
+        scope=community lists every report whose effective visibility is
+        public; scope=mine lists the signed-in user's own reports. Filter by
+        game, issue type, category, priority, status, verification or search.
       parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [community, mine]
+        - name: game
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: issueType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [community, game]
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: priority
+          in: query
+          required: false
+          schema:
+            type: string
         - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: verification
           in: query
           required: false
           schema:
@@ -93,7 +178,12 @@ paths:
     post:
       operationId: createReport
       tags: [reports]
-      summary: Create a private Nulls Brawl ticket
+      summary: Submit a community or private report
+      description: >
+        The reporter chooses Public (visible to the community) or Private
+        (reporter + staff only). Risk-critical reports are automatically
+        restricted regardless of the choice. Requires a trusted authentication
+        method (Discord or Nulls Connect).
       requestBody:
         required: true
         content:
@@ -111,6 +201,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /reports/{id}:
     get:
       operationId: getReport
@@ -156,6 +248,34 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /reports/{id}/visibility:
+    post:
+      operationId: updateReportVisibility
+      tags: [reports]
+      summary: Change a report's visibility or hide it from the community (staff)
+      description: >
+        Staff can flip the original Public/Private setting and/or hide a
+        report from the community (with an optional reason). Every change is
+        recorded in the audit log; the original visibility is preserved.
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportVisibilityInput"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /reports/{id}/verify:
     post:
       operationId: verifyReport
@@ -172,24 +292,6 @@ paths:
       responses:
         "200":
           description: Verified report
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReportDetail"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-  /reports/{id}/forward:
-    post:
-      operationId: forwardReport
-      tags: [reports]
-      summary: Forward a verified report to administrators
-      parameters:
-        - $ref: "#/components/parameters/ReportId"
-      responses:
-        "200":
-          description: Forwarded report
           content:
             application/json:
               schema:
@@ -487,6 +589,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
+    ServiceUnavailable:
+      description: Service not configured
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
     BadRequest:
       description: Invalid request
       content:
@@ -516,8 +624,7 @@ components:
       type: object
       properties:
         id: { type: number }
-        clerkUserId: { type: string }
-        email: { type: ["string", "null"] }
+        tag: { type: ["string", "null"] }
         displayName: { type: string }
         role:
           type: string
@@ -526,11 +633,25 @@ components:
         nullsConnectId: { type: ["string", "null"] }
         nullsConnectName: { type: ["string", "null"] }
         avatarPath: { type: ["string", "null"] }
+        discordId: { type: ["string", "null"] }
+        discordUsername: { type: ["string", "null"] }
         preferences:
           type: object
           additionalProperties: true
+        authMethods:
+          type: array
+          items: { $ref: "#/components/schemas/AuthMethod" }
+        hasTrustedAuth: { type: boolean }
         createdAt: { type: string, format: date-time }
-      required: [id, clerkUserId, displayName, role, preferences, createdAt]
+      required: [id, tag, displayName, role, preferences, authMethods, hasTrustedAuth, createdAt]
+    AuthMethod:
+      type: object
+      properties:
+        provider: { type: string, enum: [discord, nulls_connect] }
+        name: { type: string }
+        label: { type: ["string", "null"] }
+        linkedAt: { type: string, format: date-time }
+      required: [provider, name, label, linkedAt]
     ReportSummary:
       type: object
       properties:
@@ -538,29 +659,47 @@ components:
         ticketNumber: { type: string }
         ownerId: { type: number }
         ownerName: { type: string }
+        ownerTag: { type: ["string", "null"] }
+        anonymous: { type: boolean }
         game: { type: string }
         category: { type: string }
         subtype: { type: string }
+        issueType: { type: string, enum: [community, game] }
         title: { type: string }
         status: { type: string }
-        priority: { type: string }
+        verification: { type: string, enum: [unverified, verified, rejected] }
+        staffStage: { type: string, enum: [moderator_review, administrator_review, resolution] }
+        visibility: { type: string, enum: [public, private] }
+        effectiveVisibility: { type: string, enum: [public, private, hidden, restricted] }
+        hidden: { type: boolean }
+        hiddenReason: { type: ["string", "null"] }
+        verifiedByName: { type: ["string", "null"] }
+        verifiedAt: { type: ["string", "null"], format: date-time }
+        priority: { type: string, enum: [normal, high, critical] }
         allowUserMessages: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, ticketNumber, ownerId, ownerName, game, category, subtype, title, status, priority, allowUserMessages, createdAt, updatedAt]
+      required: [id, ticketNumber, ownerId, ownerName, ownerTag, anonymous, game, category, subtype, issueType, title, status, verification, staffStage, visibility, effectiveVisibility, hidden, verifiedByName, verifiedAt, priority, allowUserMessages, createdAt, updatedAt]
     ReportDetail:
       allOf:
         - $ref: "#/components/schemas/ReportSummary"
         - type: object
           properties:
             details: { type: string }
+            fields:
+              type: object
+              additionalProperties: true
+            verifiedByName: { type: ["string", "null"] }
+            verifiedAt: { type: ["string", "null"], format: date-time }
+            hiddenByName: { type: ["string", "null"] }
+            hiddenAt: { type: ["string", "null"], format: date-time }
             history:
               type: array
               items: { $ref: "#/components/schemas/HistoryItem" }
             attachments:
               type: array
               items: { $ref: "#/components/schemas/Attachment" }
-          required: [details, history, attachments]
+          required: [details, fields, verifiedByName, verifiedAt, hiddenByName, hiddenAt, history, attachments]
     HistoryItem:
       type: object
       properties:
@@ -568,6 +707,11 @@ components:
         action: { type: string }
         fromStatus: { type: ["string", "null"] }
         toStatus: { type: ["string", "null"] }
+        fromVerification: { type: ["string", "null"] }
+        toVerification: { type: ["string", "null"] }
+        fromValue: { type: ["string", "null"] }
+        toValue: { type: ["string", "null"] }
+        actorRole: { type: ["string", "null"] }
         details: { type: ["string", "null"] }
         actorName: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
@@ -579,6 +723,7 @@ components:
         reportId: { type: number }
         authorId: { type: number }
         authorName: { type: string }
+        authorRole: { type: ["string", "null"] }
         body: { type: string }
         isInternal: { type: boolean }
         attachments:
@@ -611,11 +756,17 @@ components:
       type: object
       properties:
         game: { type: string, enum: [nulls-brawl, nulls-clash-of-clans, nulls-royale, nulls-royale-infinity] }
-        category: { type: string, enum: [bug, account, server] }
-        subtype: { type: string, minLength: 1 }
+        issueType: { type: string, enum: [community, game] }
+        category: { type: string, minLength: 1, maxLength: 80 }
+        subtype: { type: string, minLength: 1, maxLength: 80 }
         title: { type: string, minLength: 3, maxLength: 160 }
         details: { type: string, minLength: 10, maxLength: 10000 }
+        fields:
+          type: object
+          additionalProperties: true
         anonymous: { type: boolean }
+        visibility: { type: string, enum: [public, private], default: public }
+        priority: { type: string, enum: [normal, high, critical], default: normal }
         attachmentIds:
           type: array
           items: { type: number }
@@ -624,9 +775,16 @@ components:
       type: object
       properties:
         title: { type: string, minLength: 3, maxLength: 160 }
-        status: { type: string, enum: [submitted, verifying, rejected, verified, forwarded, waiting_for_user, in_progress, resolved, closed] }
-        priority: { type: string, enum: [low, normal, high, urgent] }
+        status: { type: string, enum: [open, under_review, awaiting_admin, in_progress, waiting_for_user, resolved, closed] }
+        priority: { type: string, enum: [normal, high, critical] }
         details: { type: string, minLength: 10, maxLength: 10000 }
+    UpdateReportVisibilityInput:
+      type: object
+      properties:
+        visibility: { type: string, enum: [public, private] }
+        hidden: { type: boolean }
+        reason: { type: string, maxLength: 500 }
+      description: At least one of visibility/hidden is required.
     VerifyReportInput:
       type: object
       properties:
@@ -638,6 +796,7 @@ components:
       properties:
         body: { type: string, minLength: 1, maxLength: 10000 }
         isInternal: { type: boolean }
+        dedupeKey: { type: string, maxLength: 80 }
         attachmentIds:
           type: array
           maxItems: 10
@@ -683,7 +842,6 @@ components:
       type: object
       properties:
         displayName: { type: string, minLength: 1, maxLength: 80 }
-        nullsConnectId: { type: ["string", "null"], maxLength: 200 }
         preferences:
           type: object
           additionalProperties: true

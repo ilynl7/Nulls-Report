@@ -1,144 +1,124 @@
-import { clerkClient, clerkMiddleware, getAuth } from "@clerk/express";
-import { db, portalUsersTable, type PortalUser } from "@workspace/db";
-import { count, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
+import {
+  authIdentitiesTable,
+  db,
+  portalUsersTable,
+  type AuthIdentity,
+  type PortalUser,
+} from "@workspace/db";
 import { httpError, portalUserOf, type AuthedRequest } from "./http";
+import { destroySession, resolveSession } from "./session";
 
 /**
- * Mounts Clerk's request middleware when a secret key is configured.
- * When CLERK_SECRET_KEY is missing the middleware is a no-op and protected
- * routes report a clear 503 instead of crashing.
+ * The only accepted authentication providers. An account is created through
+ * one of them on first sign-in, and the same provider identity always maps
+ * to the same portal account. Every account therefore has trusted auth.
  */
-export function authMiddleware(): RequestHandler {
-  const secretKey = process.env.CLERK_SECRET_KEY;
-  // Clerk's middleware also requires a publishable key server-side. Prefer
-  // the server-side name, but fall back to the frontend value so a single
-  // pasted key works for both.
-  const publishableKey =
-    process.env.CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY;
-  if (!secretKey) {
-    return (_req, _res, next) => next();
-  }
-  return clerkMiddleware({ secretKey, publishableKey });
-}
+export const TRUSTED_PROVIDERS = new Set(["discord", "nulls_connect"]);
 
-type ClerkAuth = ReturnType<typeof getAuth>;
+export const AUTH_PROVIDER_LABELS: Record<string, string> = {
+  discord: "Discord",
+  nulls_connect: "Nulls Connect",
+};
 
-function claimString(claims: Record<string, unknown> | undefined, key: string): string | undefined {
-  const value = claims?.[key];
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
+// ---------------------------------------------------------------------------
+// Role resolution
+// ---------------------------------------------------------------------------
 
 /**
- * Finds the portal user row for a Clerk session, creating it on first sign-in.
- * Role and profile defaults live here; display name is only back-filled when
- * the user has not customized it.
+ * Optional env-configured general administrator, keyed by the account's public
+ * tag (e.g. `ADMIN_TAG=A7K4P2` or `ADMIN_TAG=#A7K4P2`). The account keeps its
+ * stored role in the database — the env tag only elevates it. Everything else
+ * (moderators, blocking, removal) is managed from the administration panel.
  */
-export async function getOrCreatePortalUser(auth: ClerkAuth): Promise<PortalUser> {
-  if (!auth?.userId) {
-    throw httpError(401, "Authentication required");
+const ADMIN_TAG = (process.env.ADMIN_TAG ?? "").trim().replace(/^#/, "");
+
+/** The effective role of a user: the env ADMIN_TAG wins over the stored role. */
+export function effectiveRole(user: PortalUser): PortalUser["role"] {
+  if (ADMIN_TAG && user.tag === ADMIN_TAG) return "administrator";
+  return user.role;
+}
+
+export function isAdministrator(user: PortalUser): boolean {
+  return effectiveRole(user) === "administrator";
+}
+
+// ---------------------------------------------------------------------------
+// User tags
+// ---------------------------------------------------------------------------
+
+// No I, O, 0, 1, L — avoids ambiguous characters in the generated tag.
+const TAG_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const TAG_LENGTH = 6;
+
+export function generateUserTag(): string {
+  let tag = "";
+  for (let i = 0; i < TAG_LENGTH; i++) {
+    tag += TAG_ALPHABET[Math.floor(Math.random() * TAG_ALPHABET.length)];
   }
-  const userId = auth.userId;
-  const claims = (auth.sessionClaims ?? {}) as Record<string, unknown>;
-  let email = claimString(claims, "email");
-  let firstName = claimString(claims, "first_name");
-  let lastName = claimString(claims, "last_name");
-  let username = claimString(claims, "username");
+  return tag;
+}
 
-  // Backfill profile data (especially the email for the admin list) from the
-  // Clerk API when the session token doesn't carry it.
-  if (!email || !firstName || !lastName || !username) {
-    const profile = await fetchClerkProfile(userId);
-    if (profile) {
-      email = email ?? profile.primaryEmailAddress?.emailAddress ?? undefined;
-      firstName = firstName ?? profile.firstName ?? undefined;
-      lastName = lastName ?? profile.lastName ?? undefined;
-      username = username ?? profile.username ?? undefined;
-    }
-  }
-
-  const derivedName =
-    [firstName, lastName].filter(Boolean).join(" ").trim() ||
-    username ||
-    email?.split("@")[0] ||
-    "Nulls reporter";
-
-  const existing = await db
-    .select()
-    .from(portalUsersTable)
-    .where(eq(portalUsersTable.clerkUserId, userId))
-    .limit(1);
-
-  if (existing.length > 0) {
-    const user = existing[0];
-    const updates: Partial<typeof portalUsersTable.$inferInsert> = {};
-    if (email && email !== user.email) {
-      updates.email = email;
-    }
-    if (!user.displayName || user.displayName === "Nulls reporter") {
-      updates.displayName = derivedName;
-    }
-    if (Object.keys(updates).length > 0) {
-      const [updated] = await db
-        .update(portalUsersTable)
-        .set(updates)
-        .where(eq(portalUsersTable.id, user.id))
-        .returning();
-      return updated;
-    }
-    return user;
-  }
-
-  try {
-    // Bootstrap: the very first account in the system becomes an
-    // administrator so the owner can promote moderators from the Admin page.
+/** Generates a random permanent tag, retrying on the rare unique collision. */
+export async function generateUniqueTag(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const tag = generateUserTag();
     const existing = await db
-      .select({ n: count() })
+      .select({ id: portalUsersTable.id })
       .from(portalUsersTable)
+      .where(eq(portalUsersTable.tag, tag))
       .limit(1);
-    const isFirstAccount = (existing[0]?.n ?? 0) === 0;
-    const [created] = await db
-      .insert(portalUsersTable)
-      .values({
-        clerkUserId: userId,
-        email,
-        displayName: derivedName,
-        role: isFirstAccount ? "administrator" : "user",
-      })
-      .returning();
-    return created;
-  } catch (err) {
-    // Concurrent first sign-in: another request may have created the row.
-    const retried = await db
-      .select()
-      .from(portalUsersTable)
-      .where(eq(portalUsersTable.clerkUserId, userId))
-      .limit(1);
-    if (retried.length > 0) {
-      return retried[0];
-    }
-    throw err;
+    if (existing.length === 0) return tag;
   }
+  throw httpError(500, "Could not generate a unique user tag. Try again.");
+}
+
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the portal session cookie (if any) and attaches the portal user to
+ * the request. Public routes stay reachable; protected routes call requireAuth.
+ */
+export function sessionMiddleware(): RequestHandler {
+  return async (req: AuthedRequest, _res: Response, next: NextFunction) => {
+    try {
+      const session = await resolveSession(req);
+      if (session) {
+        const rows = await db
+          .select()
+          .from(portalUsersTable)
+          .where(eq(portalUsersTable.id, session.userId))
+          .limit(1);
+        if (rows.length > 0) {
+          // Apply the env ADMIN_TAG elevation so every downstream check and
+          // serializer sees the effective role consistently.
+          req.portalUser = { ...rows[0], role: effectiveRole(rows[0]) };
+          req.portalSessionToken = session.token;
+        }
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
 }
 
 export function requireAuth(): RequestHandler {
   return async (req: AuthedRequest, _res: Response, next: NextFunction) => {
     try {
-      const auth = getAuth(req);
-      if (!auth?.userId) {
-        if (!process.env.CLERK_SECRET_KEY) {
-          throw httpError(
-            503,
-            "Authentication is not configured. Set CLERK_SECRET_KEY in the workspace API Keys and restart.",
-          );
-        }
-        throw httpError(401, "Authentication required");
+      const user = req.portalUser;
+      if (!user) {
+        throw httpError(
+          401,
+          "Authentication required. Sign in to your portal account to continue.",
+        );
       }
-      const portalUser = await getOrCreatePortalUser(auth);
-      if (portalUser.blocked) {
+      if (user.blocked) {
         throw httpError(403, "This account has been blocked. Contact an administrator.");
       }
-      req.portalUser = portalUser;
       next();
     } catch (err) {
       next(err);
@@ -150,7 +130,7 @@ export function requireStaff(): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
       const user = portalUserOf(req);
-      if (user.role === "user") {
+      if (effectiveRole(user) === "user") {
         throw httpError(403, "Moderator or administrator access required");
       }
       next();
@@ -164,7 +144,7 @@ export function requireAdmin(): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
       const user = portalUserOf(req);
-      if (user.role !== "administrator") {
+      if (!isAdministrator(user)) {
         throw httpError(403, "Administrator access required");
       }
       next();
@@ -175,22 +155,112 @@ export function requireAdmin(): RequestHandler {
 }
 
 export function isStaff(user: PortalUser): boolean {
-  return user.role !== "user";
+  return effectiveRole(user) !== "user";
 }
 
 /**
- * Session tokens don't include profile data (email, names) by default, so
- * fetch the user's profile from the Clerk API to backfill it. Failures are
- * non-fatal — auth still succeeds, the fields are just left unset.
+ * Fresh databases have no staff. The very first account ever created becomes
+ * the administrator (documented bootstrap); every later account is a normal
+ * user. After a "clear database" the next sign-up gets the role again.
  */
-async function fetchClerkProfile(userId: string) {
-  try {
-    if (!process.env.CLERK_SECRET_KEY) {
-      return null;
-    }
-    return await clerkClient.users.getUser(userId);
-  } catch (err) {
-    console.error("[auth] failed to load Clerk profile:", err);
-    return null;
+export async function firstAccountRole(): Promise<"administrator" | "user"> {
+  const rows = await db.select({ id: portalUsersTable.id }).from(portalUsersTable).limit(1);
+  return rows.length === 0 ? "administrator" : "user";
+}
+
+// ---------------------------------------------------------------------------
+// Auth identities
+// ---------------------------------------------------------------------------
+
+export async function listIdentities(userId: number): Promise<AuthIdentity[]> {
+  return db
+    .select()
+    .from(authIdentitiesTable)
+    .where(eq(authIdentitiesTable.portalUserId, userId))
+    .orderBy(authIdentitiesTable.createdAt);
+}
+
+export async function findIdentity(
+  provider: string,
+  providerUserId: string,
+): Promise<AuthIdentity | null> {
+  const rows = await db
+    .select()
+    .from(authIdentitiesTable)
+    .where(
+      and(
+        eq(authIdentitiesTable.provider, provider),
+        eq(authIdentitiesTable.providerUserId, providerUserId),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Inserts a provider identity; returns the existing row if it already exists. */
+export async function linkIdentity(
+  provider: string,
+  providerUserId: string,
+  portalUserId: number,
+  metadata: Record<string, unknown> = {},
+): Promise<AuthIdentity> {
+  const [inserted] = await db
+    .insert(authIdentitiesTable)
+    .values({ provider, providerUserId, portalUserId, metadata })
+    .onConflictDoNothing({
+      target: [authIdentitiesTable.provider, authIdentitiesTable.providerUserId],
+    })
+    .returning();
+  if (inserted) return inserted;
+  const existing = await findIdentity(provider, providerUserId);
+  if (!existing) {
+    throw httpError(500, "Could not link authentication method");
+  }
+  // Refresh metadata when the identity is already linked to this account.
+  if (existing.portalUserId === portalUserId) {
+    await db
+      .update(authIdentitiesTable)
+      .set({ metadata })
+      .where(eq(authIdentitiesTable.id, existing.id));
+    return { ...existing, metadata };
+  }
+  return existing;
+}
+
+/** Removes a linked identity from an account. */
+export async function unlinkIdentity(
+  portalUserId: number,
+  provider: string,
+): Promise<boolean> {
+  const rows = await db
+    .delete(authIdentitiesTable)
+    .where(
+      and(
+        eq(authIdentitiesTable.portalUserId, portalUserId),
+        eq(authIdentitiesTable.provider, provider),
+      ),
+    )
+    .returning();
+  return rows.length > 0;
+}
+
+export async function hasTrustedAuth(userId: number): Promise<boolean> {
+  const identities = await listIdentities(userId);
+  return identities.some((i) => TRUSTED_PROVIDERS.has(i.provider));
+}
+
+/** Server-side enforcement: reports require at least one trusted method. */
+export async function assertTrustedAuth(user: PortalUser): Promise<void> {
+  if (!(await hasTrustedAuth(user.id))) {
+    throw httpError(
+      403,
+      "Authentication required. Connect Discord or Nulls Connect before submitting a report.",
+    );
+  }
+}
+
+export async function destroyCurrentSession(req: AuthedRequest): Promise<void> {
+  if (req.portalSessionToken) {
+    await destroySession(req.portalSessionToken);
   }
 }

@@ -47,3 +47,32 @@ export async function notifyStaff(
   }
   await db.insert(portalNotificationsTable).values(targets);
 }
+
+/**
+ * Creates a notification for every administrator (verified tickets land in
+ * the administrator stage, so moderators are not spammed with them).
+ */
+export async function notifyAdmins(
+  input: Omit<NotificationInput, "userId"> & { exceptUserId?: number },
+): Promise<void> {
+  const staff = await db
+    .select({ id: portalUsersTable.id })
+    .from(portalUsersTable)
+    .where(inArray(portalUsersTable.role, ["administrator"]));
+  if (staff.length === 0) {
+    return;
+  }
+  const targets = staff
+    .filter((member) => member.id !== input.exceptUserId)
+    .map((member) => ({
+      userId: member.id,
+      reportId: input.reportId ?? null,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+    }));
+  if (targets.length === 0) {
+    return;
+  }
+  await db.insert(portalNotificationsTable).values(targets);
+}

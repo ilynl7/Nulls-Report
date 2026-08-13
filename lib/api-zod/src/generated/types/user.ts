@@ -5,14 +5,14 @@
  * Nulls Report production portal API
  * OpenAPI spec version: 0.2.0
  */
+import type { AuthMethod } from './authMethod';
 import type { UserPreferences } from './userPreferences';
 import type { UserRole } from './userRole';
 
 export interface User {
   id: number;
-  clerkUserId: string;
   /** @nullable */
-  email?: string | null;
+  tag: string | null;
   displayName: string;
   role: UserRole;
   blocked?: boolean;
@@ -22,6 +22,12 @@ export interface User {
   nullsConnectName?: string | null;
   /** @nullable */
   avatarPath?: string | null;
+  /** @nullable */
+  discordId?: string | null;
+  /** @nullable */
+  discordUsername?: string | null;
   preferences: UserPreferences;
+  authMethods: AuthMethod[];
+  hasTrustedAuth: boolean;
   createdAt: Date;
 }

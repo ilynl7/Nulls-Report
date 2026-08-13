@@ -3,7 +3,7 @@ import path from "path";
 import { existsSync } from "fs";
 
 // drizzle-kit runs with cwd = lib/db, so pick up env files from the repo
-// root (e.g. .env.local written by `clerk init` or the platform) and from
+// root (e.g. .env.local written by the platform) and from
 // the package dir. Real environment variables are never overridden.
 for (const file of [
   path.join(process.cwd(), "..", "..", ".env.local"),
@@ -47,5 +47,5 @@ export default defineConfig({
   // the same schema (pg_buffercache, timescaledb, ...). Only sync our tables
   // so `push` never tries to drop extension-owned objects. New tables must
   // keep one of these prefixes (or be added here).
-  tablesFilter: ["portal_*", "report_*", "pending_*"],
+  tablesFilter: ["portal_*", "report_*", "pending_*", "auth_identities", "sessions"],
 });

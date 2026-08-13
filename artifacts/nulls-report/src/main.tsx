@@ -2,17 +2,17 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ClerkProvider } from '@clerk/react';
 import { Toaster } from 'sonner';
 
 import App from './App';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { AuthBridge } from '@/components/auth-bridge';
 import { queryClient } from '@/lib/api';
+import { portalConfig, type PortalConfig } from '@/lib/config';
+import { usePortalUser } from '@/lib/hooks';
+import { I18nProvider } from '@/lib/i18n';
+import { ThemeProvider } from '@/lib/theme';
 
 import './index.css';
-
-type PortalConfig = { publishableKey?: string | null };
 
 function Splash({ detail, onRetry }: { detail: ReactNode; onRetry?: () => void }) {
   return (
@@ -37,32 +37,27 @@ function Splash({ detail, onRetry }: { detail: ReactNode; onRetry?: () => void }
   );
 }
 
-function NotConfigured() {
+/**
+ * Provides the i18n + theme context around the app. Both read the signed-in
+ * user's saved preferences (language / appearance) so the choice follows the
+ * account across devices, while still respecting any explicit local choice.
+ */
+function AppProviders() {
+  const { user } = usePortalUser();
+  const prefs = (user?.preferences ?? {}) as { language?: string; theme?: string };
   return (
-    <Splash detail={
-      <>
-        This portal needs Clerk credentials on the <b>server</b>. Set{' '}
-        <code className="rounded bg-[#f1eee7] px-1.5 py-0.5 font-mono text-[10px] text-[#536174]">
-          CLERK_SECRET_KEY
-        </code>{' '}
-        and{' '}
-        <code className="rounded bg-[#f1eee7] px-1.5 py-0.5 font-mono text-[10px] text-[#536174]">
-          CLERK_PUBLISHABLE_KEY
-        </code>{' '}
-        (or{' '}
-        <code className="rounded bg-[#f1eee7] px-1.5 py-0.5 font-mono text-[10px] text-[#536174]">
-          VITE_CLERK_PUBLISHABLE_KEY
-        </code>
-        ) in the server environment and restart.
-      </>
-    } />
+    <I18nProvider serverLang={prefs.language}>
+      <ThemeProvider serverTheme={prefs.theme}>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>
   );
 }
 
 /**
- * Loads the Clerk publishable key from the server at runtime so it never has
- * to be baked into the static build. Shows a branded splash while the config
- * loads, and a retry screen if the API is unreachable.
+ * Loads runtime config from the server so the app knows which sign-in
+ * providers are wired up (Discord needs OAuth credentials; Nulls Connect is
+ * always available). The portal itself needs nothing else to run.
  */
 function ConfigGate() {
   const [attempt, setAttempt] = useState(0);
@@ -78,7 +73,12 @@ function ConfigGate() {
         return res.json() as Promise<PortalConfig>;
       })
       .then((data) => {
-        if (!cancelled) setConfig(data);
+        if (!cancelled) {
+          // Mutate in place: portalConfig is an imported singleton.
+          portalConfig.discordConfigured = data.discordConfigured;
+          portalConfig.publicUrl = data.publicUrl;
+          setConfig(data);
+        }
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
@@ -99,16 +99,10 @@ function ConfigGate() {
   if (!config) {
     return <Splash detail="Connecting to the portal…" />;
   }
-  if (!config.publishableKey) {
-    return <NotConfigured />;
-  }
   return (
-    <ClerkProvider publishableKey={config.publishableKey}>
-      <AuthBridge />
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
-    </ClerkProvider>
+    <QueryClientProvider client={queryClient}>
+      <AppProviders />
+    </QueryClientProvider>
   );
 }
 

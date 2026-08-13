@@ -4,18 +4,19 @@ import { Archive, FileText, Plus } from 'lucide-react';
 import { AppShell, EmptyState, ErrorState, PageEnter, PageHeading, Spinner } from '@/components/portal-ui';
 import { ReportRow } from '@/components/report-row';
 import { useNotifications, usePortalUser, useReports } from '@/lib/hooks';
+import { useI18n } from '@/lib/i18n';
 import { apiErrorMessage } from '@/lib/api';
-
-const ARCHIVED = ['resolved', 'closed'];
+import { ARCHIVED_STATUSES as ARCHIVED } from '@/lib/catalog';
 
 export function MyReportsPage() {
   const { user, isLoading: userLoading } = usePortalUser();
   const { reports, isLoading, error, refetch } = useReports();
   const { unread } = useNotifications();
+  const { t } = useI18n();
   const [view, setView] = useState<'active' | 'archived'>('active');
 
   const visible = useMemo(
-    () => reports.filter((r) => (view === 'archived' ? ARCHIVED.includes(r.status) : !ARCHIVED.includes(r.status))),
+    () => reports.filter((r) => (view === 'archived' ? (ARCHIVED as readonly string[]).includes(r.status) : !(ARCHIVED as readonly string[]).includes(r.status))),
     [reports, view],
   );
 
@@ -31,15 +32,15 @@ export function MyReportsPage() {
     <AppShell user={user} unread={unread} inboxCount={0}>
       <PageEnter>
         <PageHeading
-          eyebrow="Private workspace / Your reports"
-          title="My reports"
-          detail="A private record of the reports submitted from your account. Only your tickets appear here."
+          eyebrow={t('nav.myReports')}
+          title={t('nav.myReports')}
+          detail="Everything submitted from your account — public reports are visible to the community, private ones stay between you and staff."
           action={
             <Link
               href="/submit"
               className="flex items-center gap-2 rounded-xl bg-[#ef6358] px-4 py-2.5 text-xs font-bold text-white shadow-[0_5px_15px_rgba(239,99,88,.2)]"
             >
-              <Plus size={15} /> Submit report
+              <Plus size={15} /> {t('nav.submit')}
             </Link>
           }
         />
@@ -49,13 +50,13 @@ export function MyReportsPage() {
             onClick={() => setView('active')}
             className={`rounded-xl px-4 py-2 text-xs font-bold transition ${view === 'active' ? 'bg-[#202f46] text-white' : 'border border-[#e6e2d9] bg-white text-[#6a7584] hover:border-[#ef6358]'}`}
           >
-            Active ({reports.filter((r) => !ARCHIVED.includes(r.status)).length})
+            Active ({reports.filter((r) => !(ARCHIVED as readonly string[]).includes(r.status)).length})
           </button>
           <button
             onClick={() => setView('archived')}
             className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition ${view === 'archived' ? 'bg-[#7468b6] text-white' : 'border border-[#e6e2d9] bg-white text-[#6a7584] hover:border-[#7468b6]'}`}
           >
-            <Archive size={13} /> Archived ({reports.filter((r) => ARCHIVED.includes(r.status)).length})
+            <Archive size={13} /> Archived ({reports.filter((r) => (ARCHIVED as readonly string[]).includes(r.status)).length})
           </button>
         </div>
 
@@ -71,7 +72,7 @@ export function MyReportsPage() {
           <div className="overflow-hidden rounded-2xl border border-[#e6e2d9] bg-white">
             <div className="flex items-center justify-between border-b border-[#eeeae2] px-4 py-3.5 sm:px-5">
               <span className="text-xs font-bold text-[#455267]">{visible.length} report{visible.length === 1 ? '' : 's'}</span>
-              <span className="font-mono text-[10px] text-[#a0a7af]">private to your account</span>
+              <span className="font-mono text-[10px] text-[#a0a7af]">your account's reports</span>
             </div>
             <div className="divide-y divide-[#eeeae2]">
               {visible.map((report) => (

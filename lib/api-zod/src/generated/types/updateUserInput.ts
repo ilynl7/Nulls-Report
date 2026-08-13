@@ -16,10 +16,5 @@ export interface UpdateUserInput {
      * @maxLength 80
      */
   displayName?: string;
-  /**
-     * @maxLength 200
-     * @nullable
-     */
-  nullsConnectId?: string | null;
   preferences?: UpdateUserInputPreferences;
 }

@@ -1,12 +1,11 @@
 import { Link } from 'wouter';
 import { ChevronRight } from 'lucide-react';
 import type { ReportSummary } from '@workspace/api-client-react';
-import { CATEGORIES, priorityInfo } from '@/lib/catalog';
-import { CategoryMark, GameBadge, StatusBadge } from '@/components/portal-ui';
+import { categoryLabel, priorityInfo } from '@/lib/catalog';
+import { CategoryMark, GameBadge, StatusBadge, VerificationBadge, VisibilityBadge } from '@/components/portal-ui';
 import { timeAgo } from '@/lib/format';
 
 export function ReportRow({ report }: { report: ReportSummary }) {
-  const category = CATEGORIES[report.category];
   const priority = priorityInfo(report.priority);
   return (
     <Link
@@ -25,12 +24,12 @@ export function ReportRow({ report }: { report: ReportSummary }) {
           </div>
           <p className="mt-1 truncate text-[13px] font-bold text-[#2d394b] group-hover:text-[#ef6358]">{report.title}</p>
           <p className="mt-0.5 truncate text-[11px] text-[#89929f]">
-            {report.subtype} · {timeAgo(report.createdAt)}
+            {report.subtype !== 'general' ? categoryLabel(report.subtype) : categoryLabel(report.category)} · {timeAgo(report.createdAt)}
           </p>
         </div>
       </div>
       <div className="hidden text-xs sm:block">
-        <span className="block font-medium text-[#536174]">{category?.label ?? report.category}</span>
+        <span className="block font-medium text-[#536174]">{categoryLabel(report.category)}</span>
         <span className="mt-1 block text-[10px] text-[#a0a7af]">{report.ownerName}</span>
       </div>
       <div className="hidden text-xs sm:block">
@@ -39,6 +38,12 @@ export function ReportRow({ report }: { report: ReportSummary }) {
       </div>
       <span className="self-start sm:self-auto">
         <StatusBadge status={report.status} />
+      </span>
+      <span className="hidden self-start sm:self-auto sm:block">
+        <VerificationBadge verification={report.verification} />
+      </span>
+      <span className="hidden self-start sm:self-auto lg:block">
+        <VisibilityBadge visibility={report.effectiveVisibility} />
       </span>
       {report.allowUserMessages && (
         <span className="hidden rounded-md bg-[#fff6df] px-1.5 py-0.5 text-[9px] font-bold text-[#936b16] sm:inline-block">

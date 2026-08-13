@@ -17,19 +17,74 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Get the signed-in portal user
+ * @summary End the current session
  */
-export const GetCurrentUserResponse = zod.object({
+export const LogoutPortalSessionResponse = zod.void()
+
+
+/**
+ * Removes the provider link from the account. The account itself is never deleted. The client warns when this is the only method.
+ * @summary Disconnect a linked authentication method
+ */
+export const DisconnectAuthMethodParams = zod.object({
+  "provider": zod.enum(['discord', 'nulls_connect'])
+})
+
+export const DisconnectAuthMethodResponse = zod.object({
   "id": zod.number(),
-  "clerkUserId": zod.string(),
-  "email": zod.string().nullish(),
+  "tag": zod.string().nullable(),
   "displayName": zod.string(),
   "role": zod.enum(['user', 'moderator', 'administrator']),
   "blocked": zod.boolean().optional(),
   "nullsConnectId": zod.string().nullish(),
   "nullsConnectName": zod.string().nullish(),
   "avatarPath": zod.string().nullish(),
+  "discordId": zod.string().nullish(),
+  "discordUsername": zod.string().nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()),
+  "authMethods": zod.array(zod.object({
+  "provider": zod.enum(['discord', 'nulls_connect']),
+  "name": zod.string(),
+  "label": zod.string().nullable(),
+  "linkedAt": zod.coerce.date()
+})),
+  "hasTrustedAuth": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Start Discord OAuth (browser redirect)
+ */
+export const DiscordOauthStartQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+export const DiscordOauthStartResponse = zod.void()
+
+
+/**
+ * @summary Get the signed-in portal user
+ */
+export const GetCurrentUserResponse = zod.object({
+  "id": zod.number(),
+  "tag": zod.string().nullable(),
+  "displayName": zod.string(),
+  "role": zod.enum(['user', 'moderator', 'administrator']),
+  "blocked": zod.boolean().optional(),
+  "nullsConnectId": zod.string().nullish(),
+  "nullsConnectName": zod.string().nullish(),
+  "avatarPath": zod.string().nullish(),
+  "discordId": zod.string().nullish(),
+  "discordUsername": zod.string().nullish(),
+  "preferences": zod.record(zod.string(), zod.unknown()),
+  "authMethods": zod.array(zod.object({
+  "provider": zod.enum(['discord', 'nulls_connect']),
+  "name": zod.string(),
+  "label": zod.string().nullable(),
+  "linkedAt": zod.coerce.date()
+})),
+  "hasTrustedAuth": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
 
@@ -39,36 +94,48 @@ export const GetCurrentUserResponse = zod.object({
  */
 export const updateCurrentUserBodyDisplayNameMax = 80;
 
-export const updateCurrentUserBodyNullsConnectIdMax = 200;
-
 
 
 export const UpdateCurrentUserBody = zod.object({
   "displayName": zod.string().min(1).max(updateCurrentUserBodyDisplayNameMax).optional(),
-  "nullsConnectId": zod.string().max(updateCurrentUserBodyNullsConnectIdMax).nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()).optional()
 }).describe('At least one field is required.')
 
 export const UpdateCurrentUserResponse = zod.object({
   "id": zod.number(),
-  "clerkUserId": zod.string(),
-  "email": zod.string().nullish(),
+  "tag": zod.string().nullable(),
   "displayName": zod.string(),
   "role": zod.enum(['user', 'moderator', 'administrator']),
   "blocked": zod.boolean().optional(),
   "nullsConnectId": zod.string().nullish(),
   "nullsConnectName": zod.string().nullish(),
   "avatarPath": zod.string().nullish(),
+  "discordId": zod.string().nullish(),
+  "discordUsername": zod.string().nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()),
+  "authMethods": zod.array(zod.object({
+  "provider": zod.enum(['discord', 'nulls_connect']),
+  "name": zod.string(),
+  "label": zod.string().nullable(),
+  "linkedAt": zod.coerce.date()
+})),
+  "hasTrustedAuth": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
 
 
 /**
- * @summary List reports visible to the signed-in user
+ * scope=community lists every report whose effective visibility is public; scope=mine lists the signed-in user's own reports. Filter by game, issue type, category, priority, status, verification or search.
+ * @summary List reports visible to the signed-in user (community feed or own)
  */
 export const ListReportsQueryParams = zod.object({
+  "scope": zod.enum(['community', 'mine']).optional(),
+  "game": zod.coerce.string().optional(),
+  "issueType": zod.enum(['community', 'game']).optional(),
+  "category": zod.coerce.string().optional(),
+  "priority": zod.coerce.string().optional(),
   "status": zod.coerce.string().optional(),
+  "verification": zod.coerce.string().optional(),
   "search": zod.coerce.string().optional()
 })
 
@@ -77,12 +144,23 @@ export const ListReportsResponseItem = zod.object({
   "ticketNumber": zod.string(),
   "ownerId": zod.number(),
   "ownerName": zod.string(),
+  "ownerTag": zod.string().nullable(),
+  "anonymous": zod.boolean(),
   "game": zod.string(),
   "category": zod.string(),
   "subtype": zod.string(),
+  "issueType": zod.enum(['community', 'game']),
   "title": zod.string(),
   "status": zod.string(),
-  "priority": zod.string(),
+  "verification": zod.enum(['unverified', 'verified', 'rejected']),
+  "staffStage": zod.enum(['moderator_review', 'administrator_review', 'resolution']),
+  "visibility": zod.enum(['public', 'private']),
+  "effectiveVisibility": zod.enum(['public', 'private', 'hidden', 'restricted']),
+  "hidden": zod.boolean(),
+  "hiddenReason": zod.string().nullish(),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "priority": zod.enum(['normal', 'high', 'critical']),
   "allowUserMessages": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -91,8 +169,12 @@ export const ListReportsResponse = zod.array(ListReportsResponseItem)
 
 
 /**
- * @summary Create a private Nulls Brawl ticket
+ * The reporter chooses Public (visible to the community) or Private (reporter + staff only). Risk-critical reports are automatically restricted regardless of the choice. Requires a trusted authentication method (Discord or Nulls Connect).
+ * @summary Submit a community or private report
  */
+export const createReportBodyCategoryMax = 80;
+
+export const createReportBodySubtypeMax = 80;
 
 export const createReportBodyTitleMin = 3;
 export const createReportBodyTitleMax = 160;
@@ -100,15 +182,20 @@ export const createReportBodyTitleMax = 160;
 export const createReportBodyDetailsMin = 10;
 export const createReportBodyDetailsMax = 10000;
 
-
+export const createReportBodyVisibilityDefault = `public`;
+export const createReportBodyPriorityDefault = `normal`;
 
 export const CreateReportBody = zod.object({
   "game": zod.enum(['nulls-brawl', 'nulls-clash-of-clans', 'nulls-royale', 'nulls-royale-infinity']),
-  "category": zod.enum(['bug', 'account', 'server']),
-  "subtype": zod.string().min(1),
+  "issueType": zod.enum(['community', 'game']).optional(),
+  "category": zod.string().min(1).max(createReportBodyCategoryMax),
+  "subtype": zod.string().min(1).max(createReportBodySubtypeMax),
   "title": zod.string().min(createReportBodyTitleMin).max(createReportBodyTitleMax),
   "details": zod.string().min(createReportBodyDetailsMin).max(createReportBodyDetailsMax),
+  "fields": zod.record(zod.string(), zod.unknown()).optional(),
   "anonymous": zod.boolean(),
+  "visibility": zod.enum(['public', 'private']).default(createReportBodyVisibilityDefault),
+  "priority": zod.enum(['normal', 'high', 'critical']).default(createReportBodyPriorityDefault),
   "attachmentIds": zod.array(zod.number()).optional()
 })
 
@@ -117,22 +204,43 @@ export const CreateReportResponse = zod.object({
   "ticketNumber": zod.string(),
   "ownerId": zod.number(),
   "ownerName": zod.string(),
+  "ownerTag": zod.string().nullable(),
+  "anonymous": zod.boolean(),
   "game": zod.string(),
   "category": zod.string(),
   "subtype": zod.string(),
+  "issueType": zod.enum(['community', 'game']),
   "title": zod.string(),
   "status": zod.string(),
-  "priority": zod.string(),
+  "verification": zod.enum(['unverified', 'verified', 'rejected']),
+  "staffStage": zod.enum(['moderator_review', 'administrator_review', 'resolution']),
+  "visibility": zod.enum(['public', 'private']),
+  "effectiveVisibility": zod.enum(['public', 'private', 'hidden', 'restricted']),
+  "hidden": zod.boolean(),
+  "hiddenReason": zod.string().nullish(),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "priority": zod.enum(['normal', 'high', 'critical']),
   "allowUserMessages": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
   "details": zod.string(),
+  "fields": zod.record(zod.string(), zod.unknown()),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "hiddenByName": zod.string().nullable(),
+  "hiddenAt": zod.coerce.date().nullable(),
   "history": zod.array(zod.object({
   "id": zod.number(),
   "action": zod.string(),
   "fromStatus": zod.string().nullish(),
   "toStatus": zod.string().nullish(),
+  "fromVerification": zod.string().nullish(),
+  "toVerification": zod.string().nullish(),
+  "fromValue": zod.string().nullish(),
+  "toValue": zod.string().nullish(),
+  "actorRole": zod.string().nullish(),
   "details": zod.string().nullish(),
   "actorName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
@@ -160,22 +268,43 @@ export const GetReportResponse = zod.object({
   "ticketNumber": zod.string(),
   "ownerId": zod.number(),
   "ownerName": zod.string(),
+  "ownerTag": zod.string().nullable(),
+  "anonymous": zod.boolean(),
   "game": zod.string(),
   "category": zod.string(),
   "subtype": zod.string(),
+  "issueType": zod.enum(['community', 'game']),
   "title": zod.string(),
   "status": zod.string(),
-  "priority": zod.string(),
+  "verification": zod.enum(['unverified', 'verified', 'rejected']),
+  "staffStage": zod.enum(['moderator_review', 'administrator_review', 'resolution']),
+  "visibility": zod.enum(['public', 'private']),
+  "effectiveVisibility": zod.enum(['public', 'private', 'hidden', 'restricted']),
+  "hidden": zod.boolean(),
+  "hiddenReason": zod.string().nullish(),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "priority": zod.enum(['normal', 'high', 'critical']),
   "allowUserMessages": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
   "details": zod.string(),
+  "fields": zod.record(zod.string(), zod.unknown()),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "hiddenByName": zod.string().nullable(),
+  "hiddenAt": zod.coerce.date().nullable(),
   "history": zod.array(zod.object({
   "id": zod.number(),
   "action": zod.string(),
   "fromStatus": zod.string().nullish(),
   "toStatus": zod.string().nullish(),
+  "fromVerification": zod.string().nullish(),
+  "toVerification": zod.string().nullish(),
+  "fromValue": zod.string().nullish(),
+  "toValue": zod.string().nullish(),
+  "actorRole": zod.string().nullish(),
   "details": zod.string().nullish(),
   "actorName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
@@ -208,8 +337,8 @@ export const updateReportBodyDetailsMax = 10000;
 
 export const UpdateReportBody = zod.object({
   "title": zod.string().min(updateReportBodyTitleMin).max(updateReportBodyTitleMax).optional(),
-  "status": zod.enum(['submitted', 'verifying', 'rejected', 'verified', 'forwarded', 'waiting_for_user', 'in_progress', 'resolved', 'closed']).optional(),
-  "priority": zod.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  "status": zod.enum(['open', 'under_review', 'awaiting_admin', 'in_progress', 'waiting_for_user', 'resolved', 'closed']).optional(),
+  "priority": zod.enum(['normal', 'high', 'critical']).optional(),
   "details": zod.string().min(updateReportBodyDetailsMin).max(updateReportBodyDetailsMax).optional()
 })
 
@@ -218,22 +347,118 @@ export const UpdateReportResponse = zod.object({
   "ticketNumber": zod.string(),
   "ownerId": zod.number(),
   "ownerName": zod.string(),
+  "ownerTag": zod.string().nullable(),
+  "anonymous": zod.boolean(),
   "game": zod.string(),
   "category": zod.string(),
   "subtype": zod.string(),
+  "issueType": zod.enum(['community', 'game']),
   "title": zod.string(),
   "status": zod.string(),
-  "priority": zod.string(),
+  "verification": zod.enum(['unverified', 'verified', 'rejected']),
+  "staffStage": zod.enum(['moderator_review', 'administrator_review', 'resolution']),
+  "visibility": zod.enum(['public', 'private']),
+  "effectiveVisibility": zod.enum(['public', 'private', 'hidden', 'restricted']),
+  "hidden": zod.boolean(),
+  "hiddenReason": zod.string().nullish(),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "priority": zod.enum(['normal', 'high', 'critical']),
   "allowUserMessages": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
   "details": zod.string(),
+  "fields": zod.record(zod.string(), zod.unknown()),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "hiddenByName": zod.string().nullable(),
+  "hiddenAt": zod.coerce.date().nullable(),
   "history": zod.array(zod.object({
   "id": zod.number(),
   "action": zod.string(),
   "fromStatus": zod.string().nullish(),
   "toStatus": zod.string().nullish(),
+  "fromVerification": zod.string().nullish(),
+  "toVerification": zod.string().nullish(),
+  "fromValue": zod.string().nullish(),
+  "toValue": zod.string().nullish(),
+  "actorRole": zod.string().nullish(),
+  "details": zod.string().nullish(),
+  "actorName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "size": zod.number(),
+  "downloadPath": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * Staff can flip the original Public/Private setting and/or hide a report from the community (with an optional reason). Every change is recorded in the audit log; the original visibility is preserved.
+ * @summary Change a report's visibility or hide it from the community (staff)
+ */
+export const UpdateReportVisibilityParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateReportVisibilityBodyReasonMax = 500;
+
+
+
+export const UpdateReportVisibilityBody = zod.object({
+  "visibility": zod.enum(['public', 'private']).optional(),
+  "hidden": zod.boolean().optional(),
+  "reason": zod.string().max(updateReportVisibilityBodyReasonMax).optional()
+}).describe('At least one of visibility\/hidden is required.')
+
+export const UpdateReportVisibilityResponse = zod.object({
+  "id": zod.number(),
+  "ticketNumber": zod.string(),
+  "ownerId": zod.number(),
+  "ownerName": zod.string(),
+  "ownerTag": zod.string().nullable(),
+  "anonymous": zod.boolean(),
+  "game": zod.string(),
+  "category": zod.string(),
+  "subtype": zod.string(),
+  "issueType": zod.enum(['community', 'game']),
+  "title": zod.string(),
+  "status": zod.string(),
+  "verification": zod.enum(['unverified', 'verified', 'rejected']),
+  "staffStage": zod.enum(['moderator_review', 'administrator_review', 'resolution']),
+  "visibility": zod.enum(['public', 'private']),
+  "effectiveVisibility": zod.enum(['public', 'private', 'hidden', 'restricted']),
+  "hidden": zod.boolean(),
+  "hiddenReason": zod.string().nullish(),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "priority": zod.enum(['normal', 'high', 'critical']),
+  "allowUserMessages": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "details": zod.string(),
+  "fields": zod.record(zod.string(), zod.unknown()),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "hiddenByName": zod.string().nullable(),
+  "hiddenAt": zod.coerce.date().nullable(),
+  "history": zod.array(zod.object({
+  "id": zod.number(),
+  "action": zod.string(),
+  "fromStatus": zod.string().nullish(),
+  "toStatus": zod.string().nullish(),
+  "fromVerification": zod.string().nullish(),
+  "toVerification": zod.string().nullish(),
+  "fromValue": zod.string().nullish(),
+  "toValue": zod.string().nullish(),
+  "actorRole": zod.string().nullish(),
   "details": zod.string().nullish(),
   "actorName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
@@ -270,65 +495,43 @@ export const VerifyReportResponse = zod.object({
   "ticketNumber": zod.string(),
   "ownerId": zod.number(),
   "ownerName": zod.string(),
+  "ownerTag": zod.string().nullable(),
+  "anonymous": zod.boolean(),
   "game": zod.string(),
   "category": zod.string(),
   "subtype": zod.string(),
+  "issueType": zod.enum(['community', 'game']),
   "title": zod.string(),
   "status": zod.string(),
-  "priority": zod.string(),
+  "verification": zod.enum(['unverified', 'verified', 'rejected']),
+  "staffStage": zod.enum(['moderator_review', 'administrator_review', 'resolution']),
+  "visibility": zod.enum(['public', 'private']),
+  "effectiveVisibility": zod.enum(['public', 'private', 'hidden', 'restricted']),
+  "hidden": zod.boolean(),
+  "hiddenReason": zod.string().nullish(),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "priority": zod.enum(['normal', 'high', 'critical']),
   "allowUserMessages": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
   "details": zod.string(),
+  "fields": zod.record(zod.string(), zod.unknown()),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "hiddenByName": zod.string().nullable(),
+  "hiddenAt": zod.coerce.date().nullable(),
   "history": zod.array(zod.object({
   "id": zod.number(),
   "action": zod.string(),
   "fromStatus": zod.string().nullish(),
   "toStatus": zod.string().nullish(),
-  "details": zod.string().nullish(),
-  "actorName": zod.string().nullish(),
-  "createdAt": zod.coerce.date()
-})),
-  "attachments": zod.array(zod.object({
-  "id": zod.number(),
-  "fileName": zod.string(),
-  "contentType": zod.string(),
-  "size": zod.number(),
-  "downloadPath": zod.string(),
-  "createdAt": zod.coerce.date()
-}))
-}))
-
-
-/**
- * @summary Forward a verified report to administrators
- */
-export const ForwardReportParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const ForwardReportResponse = zod.object({
-  "id": zod.number(),
-  "ticketNumber": zod.string(),
-  "ownerId": zod.number(),
-  "ownerName": zod.string(),
-  "game": zod.string(),
-  "category": zod.string(),
-  "subtype": zod.string(),
-  "title": zod.string(),
-  "status": zod.string(),
-  "priority": zod.string(),
-  "allowUserMessages": zod.boolean(),
-  "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
-}).and(zod.object({
-  "details": zod.string(),
-  "history": zod.array(zod.object({
-  "id": zod.number(),
-  "action": zod.string(),
-  "fromStatus": zod.string().nullish(),
-  "toStatus": zod.string().nullish(),
+  "fromVerification": zod.string().nullish(),
+  "toVerification": zod.string().nullish(),
+  "fromValue": zod.string().nullish(),
+  "toValue": zod.string().nullish(),
+  "actorRole": zod.string().nullish(),
   "details": zod.string().nullish(),
   "actorName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
@@ -356,6 +559,7 @@ export const ListReportMessagesResponseItem = zod.object({
   "reportId": zod.number(),
   "authorId": zod.number(),
   "authorName": zod.string(),
+  "authorRole": zod.string().nullish(),
   "body": zod.string(),
   "isInternal": zod.boolean(),
   "attachments": zod.array(zod.object({
@@ -380,6 +584,8 @@ export const CreateReportMessageParams = zod.object({
 
 export const createReportMessageBodyBodyMax = 10000;
 
+export const createReportMessageBodyDedupeKeyMax = 80;
+
 export const createReportMessageBodyAttachmentIdsMax = 10;
 
 
@@ -387,6 +593,7 @@ export const createReportMessageBodyAttachmentIdsMax = 10;
 export const CreateReportMessageBody = zod.object({
   "body": zod.string().min(1).max(createReportMessageBodyBodyMax),
   "isInternal": zod.boolean().optional(),
+  "dedupeKey": zod.string().max(createReportMessageBodyDedupeKeyMax).optional(),
   "attachmentIds": zod.array(zod.number()).max(createReportMessageBodyAttachmentIdsMax).optional()
 })
 
@@ -395,6 +602,7 @@ export const CreateReportMessageResponse = zod.object({
   "reportId": zod.number(),
   "authorId": zod.number(),
   "authorName": zod.string(),
+  "authorRole": zod.string().nullish(),
   "body": zod.string(),
   "isInternal": zod.boolean(),
   "attachments": zod.array(zod.object({
@@ -425,22 +633,43 @@ export const SetReportReplyPermissionResponse = zod.object({
   "ticketNumber": zod.string(),
   "ownerId": zod.number(),
   "ownerName": zod.string(),
+  "ownerTag": zod.string().nullable(),
+  "anonymous": zod.boolean(),
   "game": zod.string(),
   "category": zod.string(),
   "subtype": zod.string(),
+  "issueType": zod.enum(['community', 'game']),
   "title": zod.string(),
   "status": zod.string(),
-  "priority": zod.string(),
+  "verification": zod.enum(['unverified', 'verified', 'rejected']),
+  "staffStage": zod.enum(['moderator_review', 'administrator_review', 'resolution']),
+  "visibility": zod.enum(['public', 'private']),
+  "effectiveVisibility": zod.enum(['public', 'private', 'hidden', 'restricted']),
+  "hidden": zod.boolean(),
+  "hiddenReason": zod.string().nullish(),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "priority": zod.enum(['normal', 'high', 'critical']),
   "allowUserMessages": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).and(zod.object({
   "details": zod.string(),
+  "fields": zod.record(zod.string(), zod.unknown()),
+  "verifiedByName": zod.string().nullable(),
+  "verifiedAt": zod.coerce.date().nullable(),
+  "hiddenByName": zod.string().nullable(),
+  "hiddenAt": zod.coerce.date().nullable(),
   "history": zod.array(zod.object({
   "id": zod.number(),
   "action": zod.string(),
   "fromStatus": zod.string().nullish(),
   "toStatus": zod.string().nullish(),
+  "fromVerification": zod.string().nullish(),
+  "toVerification": zod.string().nullish(),
+  "fromValue": zod.string().nullish(),
+  "toValue": zod.string().nullish(),
+  "actorRole": zod.string().nullish(),
   "details": zod.string().nullish(),
   "actorName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
@@ -486,15 +715,23 @@ export const MarkNotificationReadResponse = zod.void()
  */
 export const ListPortalUsersResponseItem = zod.object({
   "id": zod.number(),
-  "clerkUserId": zod.string(),
-  "email": zod.string().nullish(),
+  "tag": zod.string().nullable(),
   "displayName": zod.string(),
   "role": zod.enum(['user', 'moderator', 'administrator']),
   "blocked": zod.boolean().optional(),
   "nullsConnectId": zod.string().nullish(),
   "nullsConnectName": zod.string().nullish(),
   "avatarPath": zod.string().nullish(),
+  "discordId": zod.string().nullish(),
+  "discordUsername": zod.string().nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()),
+  "authMethods": zod.array(zod.object({
+  "provider": zod.enum(['discord', 'nulls_connect']),
+  "name": zod.string(),
+  "label": zod.string().nullable(),
+  "linkedAt": zod.coerce.date()
+})),
+  "hasTrustedAuth": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
 export const ListPortalUsersResponse = zod.array(ListPortalUsersResponseItem)
@@ -523,15 +760,23 @@ export const UpdatePortalUserBlockBody = zod.object({
 
 export const UpdatePortalUserBlockResponse = zod.object({
   "id": zod.number(),
-  "clerkUserId": zod.string(),
-  "email": zod.string().nullish(),
+  "tag": zod.string().nullable(),
   "displayName": zod.string(),
   "role": zod.enum(['user', 'moderator', 'administrator']),
   "blocked": zod.boolean().optional(),
   "nullsConnectId": zod.string().nullish(),
   "nullsConnectName": zod.string().nullish(),
   "avatarPath": zod.string().nullish(),
+  "discordId": zod.string().nullish(),
+  "discordUsername": zod.string().nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()),
+  "authMethods": zod.array(zod.object({
+  "provider": zod.enum(['discord', 'nulls_connect']),
+  "name": zod.string(),
+  "label": zod.string().nullable(),
+  "linkedAt": zod.coerce.date()
+})),
+  "hasTrustedAuth": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
 
@@ -561,15 +806,23 @@ export const UpdatePortalUserRoleBody = zod.object({
 
 export const UpdatePortalUserRoleResponse = zod.object({
   "id": zod.number(),
-  "clerkUserId": zod.string(),
-  "email": zod.string().nullish(),
+  "tag": zod.string().nullable(),
   "displayName": zod.string(),
   "role": zod.enum(['user', 'moderator', 'administrator']),
   "blocked": zod.boolean().optional(),
   "nullsConnectId": zod.string().nullish(),
   "nullsConnectName": zod.string().nullish(),
   "avatarPath": zod.string().nullish(),
+  "discordId": zod.string().nullish(),
+  "discordUsername": zod.string().nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()),
+  "authMethods": zod.array(zod.object({
+  "provider": zod.enum(['discord', 'nulls_connect']),
+  "name": zod.string(),
+  "label": zod.string().nullable(),
+  "linkedAt": zod.coerce.date()
+})),
+  "hasTrustedAuth": zod.boolean(),
   "createdAt": zod.coerce.date()
 })
 

@@ -27,6 +27,7 @@ import type {
   CreateMessageInput,
   CreateReportInput,
   DeletePortalUser200,
+  DiscordOauthStartParams,
   ForbiddenResponse,
   HealthStatus,
   ListReportsParams,
@@ -39,6 +40,7 @@ import type {
   RoleUpdateInput,
   UnauthorizedResponse,
   UpdateReportInput,
+  UpdateReportVisibilityInput,
   UpdateUserInput,
   UploadUrlRequest,
   UploadUrlResponse,
@@ -138,6 +140,233 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLogoutPortalSessionUrl = () => {
+
+
+
+
+  return `/api/auth/logout`
+}
+
+/**
+ * @summary End the current session
+ */
+export const logoutPortalSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getLogoutPortalSessionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLogoutPortalSessionMutationOptions = <TError = ErrorType<UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logoutPortalSession>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logoutPortalSession>>, TError,void, TContext> => {
+
+const mutationKey = ['logoutPortalSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logoutPortalSession>>, void> = () => {
+
+
+          return  logoutPortalSession(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogoutPortalSessionMutationResult = NonNullable<Awaited<ReturnType<typeof logoutPortalSession>>>
+
+    export type LogoutPortalSessionMutationError = ErrorType<UnauthorizedResponse>
+
+    /**
+ * @summary End the current session
+ */
+export const useLogoutPortalSession = <TError = ErrorType<UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logoutPortalSession>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logoutPortalSession>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLogoutPortalSessionMutationOptions(options));
+    }
+
+export const getDisconnectAuthMethodUrl = (provider: 'discord' | 'nulls_connect',) => {
+
+
+
+
+  return `/api/auth/methods/${provider}/disconnect`
+}
+
+/**
+ * Removes the provider link from the account. The account itself is never deleted. The client warns when this is the only method.
+ * @summary Disconnect a linked authentication method
+ */
+export const disconnectAuthMethod = async (provider: 'discord' | 'nulls_connect', options?: Parameters<typeof customFetch>[1]): Promise<User> => {
+
+  return customFetch<User>(getDisconnectAuthMethodUrl(provider),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectAuthMethodMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectAuthMethod>>, TError,{provider: 'discord' | 'nulls_connect'}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectAuthMethod>>, TError,{provider: 'discord' | 'nulls_connect'}, TContext> => {
+
+const mutationKey = ['disconnectAuthMethod'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectAuthMethod>>, {provider: 'discord' | 'nulls_connect'}> = (props) => {
+          const {provider} = props ?? {};
+
+          return  disconnectAuthMethod(provider,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectAuthMethodMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectAuthMethod>>>
+
+    export type DisconnectAuthMethodMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+
+    /**
+ * @summary Disconnect a linked authentication method
+ */
+export const useDisconnectAuthMethod = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectAuthMethod>>, TError,{provider: 'discord' | 'nulls_connect'}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectAuthMethod>>,
+        TError,
+        {provider: 'discord' | 'nulls_connect'},
+        TContext
+      > => {
+      return useMutation(getDisconnectAuthMethodMutationOptions(options));
+    }
+
+export const getDiscordOauthStartUrl = (params?: DiscordOauthStartParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/auth/discord/start?${stringifiedParams}` : `/api/auth/discord/start`
+}
+
+/**
+ * @summary Start Discord OAuth (browser redirect)
+ */
+export const discordOauthStart = async (params?: DiscordOauthStartParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getDiscordOauthStartUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDiscordOauthStartQueryKey = (params?: DiscordOauthStartParams,) => {
+    return [
+    `/api/auth/discord/start`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDiscordOauthStartQueryOptions = <TData = Awaited<ReturnType<typeof discordOauthStart>>, TError = ErrorType<void>>(params?: DiscordOauthStartParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof discordOauthStart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDiscordOauthStartQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof discordOauthStart>>> = ({ signal }) => discordOauthStart(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof discordOauthStart>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DiscordOauthStartQueryResult = NonNullable<Awaited<ReturnType<typeof discordOauthStart>>>
+export type DiscordOauthStartQueryError = ErrorType<void>
+
+
+/**
+ * @summary Start Discord OAuth (browser redirect)
+ */
+
+export function useDiscordOauthStart<TData = Awaited<ReturnType<typeof discordOauthStart>>, TError = ErrorType<void>>(
+ params?: DiscordOauthStartParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof discordOauthStart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDiscordOauthStartQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -314,7 +543,8 @@ export const getListReportsUrl = (params?: ListReportsParams,) => {
 }
 
 /**
- * @summary List reports visible to the signed-in user
+ * scope=community lists every report whose effective visibility is public; scope=mine lists the signed-in user's own reports. Filter by game, issue type, category, priority, status, verification or search.
+ * @summary List reports visible to the signed-in user (community feed or own)
  */
 export const listReports = async (params?: ListReportsParams, options?: Parameters<typeof customFetch>[1]): Promise<ReportSummary[]> => {
 
@@ -361,7 +591,7 @@ export type ListReportsQueryError = ErrorType<UnauthorizedResponse>
 
 
 /**
- * @summary List reports visible to the signed-in user
+ * @summary List reports visible to the signed-in user (community feed or own)
  */
 
 export function useListReports<TData = Awaited<ReturnType<typeof listReports>>, TError = ErrorType<UnauthorizedResponse>>(
@@ -391,7 +621,8 @@ export const getCreateReportUrl = () => {
 }
 
 /**
- * @summary Create a private Nulls Brawl ticket
+ * The reporter chooses Public (visible to the community) or Private (reporter + staff only). Risk-critical reports are automatically restricted regardless of the choice. Requires a trusted authentication method (Discord or Nulls Connect).
+ * @summary Submit a community or private report
  */
 export const createReport = async (createReportInput: CreateReportInput, options?: Parameters<typeof customFetch>[1]): Promise<ReportDetail> => {
 
@@ -408,7 +639,7 @@ export const createReport = async (createReportInput: CreateReportInput, options
 
 
 
-export const getCreateReportMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+export const getCreateReportMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReport>>, TError,{data: BodyType<CreateReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createReport>>, TError,{data: BodyType<CreateReportInput>}, TContext> => {
 
@@ -437,12 +668,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateReportMutationResult = NonNullable<Awaited<ReturnType<typeof createReport>>>
     export type CreateReportMutationBody = BodyType<CreateReportInput>
-    export type CreateReportMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+    export type CreateReportMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
 
     /**
- * @summary Create a private Nulls Brawl ticket
+ * @summary Submit a community or private report
  */
-export const useCreateReport = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+export const useCreateReport = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReport>>, TError,{data: BodyType<CreateReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createReport>>,
@@ -602,6 +833,79 @@ export const useUpdateReport = <TError = ErrorType<BadRequestResponse | Unauthor
       return useMutation(getUpdateReportMutationOptions(options));
     }
 
+export const getUpdateReportVisibilityUrl = (id: number,) => {
+
+
+
+
+  return `/api/reports/${id}/visibility`
+}
+
+/**
+ * Staff can flip the original Public/Private setting and/or hide a report from the community (with an optional reason). Every change is recorded in the audit log; the original visibility is preserved.
+ * @summary Change a report's visibility or hide it from the community (staff)
+ */
+export const updateReportVisibility = async (id: number,
+    updateReportVisibilityInput: UpdateReportVisibilityInput, options?: Parameters<typeof customFetch>[1]): Promise<ReportDetail> => {
+
+  return customFetch<ReportDetail>(getUpdateReportVisibilityUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateReportVisibilityInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateReportVisibilityMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReportVisibility>>, TError,{id: number;data: BodyType<UpdateReportVisibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReportVisibility>>, TError,{id: number;data: BodyType<UpdateReportVisibilityInput>}, TContext> => {
+
+const mutationKey = ['updateReportVisibility'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReportVisibility>>, {id: number;data: BodyType<UpdateReportVisibilityInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateReportVisibility(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReportVisibilityMutationResult = NonNullable<Awaited<ReturnType<typeof updateReportVisibility>>>
+    export type UpdateReportVisibilityMutationBody = BodyType<UpdateReportVisibilityInput>
+    export type UpdateReportVisibilityMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Change a report's visibility or hide it from the community (staff)
+ */
+export const useUpdateReportVisibility = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReportVisibility>>, TError,{id: number;data: BodyType<UpdateReportVisibilityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReportVisibility>>,
+        TError,
+        {id: number;data: BodyType<UpdateReportVisibilityInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateReportVisibilityMutationOptions(options));
+    }
+
 export const getVerifyReportUrl = (id: number,) => {
 
 
@@ -672,77 +976,6 @@ export const useVerifyReport = <TError = ErrorType<UnauthorizedResponse | Forbid
         TContext
       > => {
       return useMutation(getVerifyReportMutationOptions(options));
-    }
-
-export const getForwardReportUrl = (id: number,) => {
-
-
-
-
-  return `/api/reports/${id}/forward`
-}
-
-/**
- * @summary Forward a verified report to administrators
- */
-export const forwardReport = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ReportDetail> => {
-
-  return customFetch<ReportDetail>(getForwardReportUrl(id),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
-
-
-
-
-export const getForwardReportMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forwardReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof forwardReport>>, TError,{id: number}, TContext> => {
-
-const mutationKey = ['forwardReport'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof forwardReport>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
-
-          return  forwardReport(id,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ForwardReportMutationResult = NonNullable<Awaited<ReturnType<typeof forwardReport>>>
-
-    export type ForwardReportMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
-
-    /**
- * @summary Forward a verified report to administrators
- */
-export const useForwardReport = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forwardReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof forwardReport>>,
-        TError,
-        {id: number},
-        TContext
-      > => {
-      return useMutation(getForwardReportMutationOptions(options));
     }
 
 export const getListReportMessagesUrl = (id: number,) => {

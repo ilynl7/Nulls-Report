@@ -6,7 +6,7 @@ import path from "node:path";
  *
  * Precedence (highest wins):
  *   1. Real environment variables (injected by the platform / shell)
- *   2. <repo root>/.env.local   (written by `clerk init`, Freebuff keys, ...)
+ *   2. <repo root>/.env.local   (written by the platform / API keys UI, ...)
  *   3. <repo root>/.env
  *   4. artifacts/api-server/.env.local
  *   5. artifacts/api-server/.env

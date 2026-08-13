@@ -19,22 +19,33 @@ import {
   WorkflowStrip,
 } from '@/components/portal-ui';
 import { ReportRow } from '@/components/report-row';
-import { useNotifications, usePortalUser, useReports } from '@/lib/hooks';
+import { useCommunityReports, useNotifications, usePortalUser, useReports } from '@/lib/hooks';
+import { useI18n } from '@/lib/i18n';
 import { apiErrorMessage } from '@/lib/api';
+import { ARCHIVED_STATUSES } from '@/lib/catalog';
 import type { ReportSummary } from '@workspace/api-client-react';
 
 function counts(reports: ReportSummary[]) {
+  const active = reports.filter((r) => !ARCHIVED_STATUSES.includes(r.status as never));
   return {
     total: reports.length,
-    needsReview: reports.filter((r) => r.status === 'submitted' || r.status === 'verifying').length,
-    inProgress: reports.filter((r) => r.status === 'in_progress' || r.status === 'waiting_for_user' || r.status === 'verified' || r.status === 'forwarded').length,
-    resolved: reports.filter((r) => r.status === 'resolved' || r.status === 'closed').length,
+    needsReview: active.filter((r) => r.verification === 'unverified').length,
+    inProgress: active.filter((r) => r.verification === 'verified' || r.status === 'waiting_for_user').length,
+    resolved: reports.filter((r) => ARCHIVED_STATUSES.includes(r.status as never)).length,
   };
 }
 
 export function DashboardPage() {
   const { user, isLoading: userLoading, error: userError } = usePortalUser();
-  const { reports, isLoading: reportsLoading, error: reportsError } = useReports();
+  const { t } = useI18n();
+  // Staff: their moderation queue. Users: their own reports (for metrics) —
+  // the "recent reports" panel switches to the community feed below.
+  const own = useReports();
+  const community = useCommunityReports();
+  const isStaff = user?.role !== 'user';
+  const reports = isStaff ? own.reports : community.reports;
+  const reportsLoading = own.isLoading || community.isLoading;
+  const reportsError = own.error ?? community.error;
   const { unread } = useNotifications();
 
   if (userLoading || !user) {
@@ -45,7 +56,6 @@ export function DashboardPage() {
     );
   }
 
-  const isStaff = user.role !== 'user';
   const error = userError ?? reportsError;
   if (error) {
     return (
@@ -55,9 +65,9 @@ export function DashboardPage() {
     );
   }
 
-  const c = counts(reports);
+  const c = counts(isStaff ? reports : own.reports);
   const viewReports = reports.slice(0, 5);
-  const replyCount = reports.filter((r) => r.status === 'waiting_for_user' || (r.status === 'in_progress' && r.allowUserMessages)).length;
+  const replyCount = (isStaff ? reports : own.reports).filter((r) => r.status === 'waiting_for_user' || (r.status === 'in_progress' && r.allowUserMessages)).length;
 
   const metrics = isStaff
     ? [
@@ -77,7 +87,7 @@ export function DashboardPage() {
     <AppShell user={user} unread={unread} inboxCount={c.needsReview}>
       <PageEnter>
         <PageHeading
-          eyebrow={isStaff ? 'Staff workspace / Overview' : 'Private workspace / Home'}
+          eyebrow={isStaff ? `${t('nav.staffWorkspace')} / ${t('nav.overview')}` : t('nav.playerWorkspace')}
           title={isStaff ? `Good ${new Date().getHours() < 12 ? 'morning' : 'afternoon'}, ${user.displayName}.` : `Welcome back, ${user.displayName}.`}
           detail={
             isStaff
@@ -97,11 +107,11 @@ export function DashboardPage() {
         <div className="mt-8 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,.75fr)]">
           <section className="rounded-2xl border border-[#e6e2d9] bg-white p-5 shadow-[0_3px_10px_rgba(35,53,68,.025)]">
             <SectionTitle
-              title="Recent reports"
-              detail={isStaff ? 'Latest tickets across the queue' : 'Your most recent submissions'}
+              title={isStaff ? 'Recent reports' : 'Community reports'}
+              detail={isStaff ? 'Latest tickets across the queue' : 'Public reports submitted by the community'}
               action={
-                <Link href={isStaff ? '/inbox' : '/my-reports'} className="flex items-center gap-1 text-xs font-bold text-[#ef6358]">
-                  {isStaff ? 'Open inbox' : 'View my reports'} <ArrowRight size={13} />
+                <Link href={isStaff ? '/inbox' : '/reports'} className="flex items-center gap-1 text-xs font-bold text-[#ef6358]">
+                  {isStaff ? 'Open inbox' : 'Browse all reports'} <ArrowRight size={13} />
                 </Link>
               }
             />
@@ -116,11 +126,11 @@ export function DashboardPage() {
             ) : (
               <EmptyState
                 icon={FileText}
-                title="No reports yet"
-                detail={isStaff ? 'New tickets will appear here as players submit them.' : 'Submit your first report to start tracking it here.'}
+                title={t('reports.noReports')}
+                detail={isStaff ? 'New tickets will appear here as players submit them.' : t('reports.noReportsDetail')}
                 action={
                   !isStaff ? (
-                    <Link href="/submit" className="text-xs font-bold text-[#ef6358]">Submit your first report</Link>
+                    <Link href="/submit" className="text-xs font-bold text-[#ef6358]">{t('nav.submit')}</Link>
                   ) : undefined
                 }
               />

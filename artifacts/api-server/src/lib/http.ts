@@ -3,6 +3,8 @@ import type { PortalUser } from "@workspace/db";
 
 export interface AuthedRequest extends Request {
   portalUser?: PortalUser;
+  /** The raw session token from the cookie (set by sessionMiddleware). */
+  portalSessionToken?: string;
 }
 
 export class HttpError extends Error {

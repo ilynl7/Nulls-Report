@@ -14,6 +14,16 @@ export interface HistoryItem {
   /** @nullable */
   toStatus?: string | null;
   /** @nullable */
+  fromVerification?: string | null;
+  /** @nullable */
+  toVerification?: string | null;
+  /** @nullable */
+  fromValue?: string | null;
+  /** @nullable */
+  toValue?: string | null;
+  /** @nullable */
+  actorRole?: string | null;
+  /** @nullable */
   details?: string | null;
   /** @nullable */
   actorName?: string | null;

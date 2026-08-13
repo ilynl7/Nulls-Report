@@ -5,18 +5,39 @@
  * Nulls Report production portal API
  * OpenAPI spec version: 0.2.0
  */
+import type { ReportSummaryEffectiveVisibility } from './reportSummaryEffectiveVisibility';
+import type { ReportSummaryIssueType } from './reportSummaryIssueType';
+import type { ReportSummaryPriority } from './reportSummaryPriority';
+import type { ReportSummaryStaffStage } from './reportSummaryStaffStage';
+import type { ReportSummaryVerification } from './reportSummaryVerification';
+import type { ReportSummaryVisibility } from './reportSummaryVisibility';
 
 export interface ReportSummary {
   id: number;
   ticketNumber: string;
   ownerId: number;
   ownerName: string;
+  /** @nullable */
+  ownerTag: string | null;
+  anonymous: boolean;
   game: string;
   category: string;
   subtype: string;
+  issueType: ReportSummaryIssueType;
   title: string;
   status: string;
-  priority: string;
+  verification: ReportSummaryVerification;
+  staffStage: ReportSummaryStaffStage;
+  visibility: ReportSummaryVisibility;
+  effectiveVisibility: ReportSummaryEffectiveVisibility;
+  hidden: boolean;
+  /** @nullable */
+  hiddenReason?: string | null;
+  /** @nullable */
+  verifiedByName: string | null;
+  /** @nullable */
+  verifiedAt: Date | null;
+  priority: ReportSummaryPriority;
   allowUserMessages: boolean;
   createdAt: Date;
   updatedAt: Date;

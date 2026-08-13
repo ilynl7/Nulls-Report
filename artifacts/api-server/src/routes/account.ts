@@ -3,7 +3,7 @@ import express, { Router } from "express";
 import { UpdateCurrentUserBody } from "@workspace/api-zod";
 import { db, portalUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { listIdentities, requireAuth } from "../lib/auth";
 import { asyncHandler, httpError, portalUserOf } from "../lib/http";
 import { userToJson } from "../lib/serialize";
 import { saveObject } from "../lib/storage";
@@ -17,7 +17,8 @@ router.get(
   "/me",
   requireAuth(),
   asyncHandler(async (req, res) => {
-    res.json(userToJson(portalUserOf(req)));
+    const user = portalUserOf(req);
+    res.json(userToJson(user, await listIdentities(user.id)));
   }),
 );
 
@@ -29,21 +30,14 @@ router.patch(
     if (!parsed.success) {
       throw httpError(400, "Invalid account details");
     }
-    const { displayName, nullsConnectId, preferences } = parsed.data;
-    if (
-      displayName === undefined &&
-      nullsConnectId === undefined &&
-      preferences === undefined
-    ) {
+    const { displayName, preferences } = parsed.data;
+    if (displayName === undefined && preferences === undefined) {
       throw httpError(400, "Provide at least one field to update");
     }
     const actor = portalUserOf(req);
     const updates: Partial<typeof portalUsersTable.$inferInsert> = {};
-    if (displayName !== undefined) {
-      updates.displayName = displayName.trim() || "Nulls reporter";
-    }
-    if (nullsConnectId !== undefined) {
-      updates.nullsConnectId = nullsConnectId ? nullsConnectId.trim() || null : null;
+    if (displayName !== undefined && displayName.trim()) {
+      updates.displayName = displayName.trim().slice(0, 80);
     }
     if (preferences !== undefined) {
       updates.preferences = preferences;
@@ -53,7 +47,7 @@ router.patch(
       .set(updates)
       .where(eq(portalUsersTable.id, actor.id))
       .returning();
-    res.json(userToJson(updated));
+    res.json(userToJson(updated, await listIdentities(actor.id)));
   }),
 );
 
@@ -83,7 +77,7 @@ router.post(
       .set({ avatarPath: objectPath })
       .where(eq(portalUsersTable.id, actor.id))
       .returning();
-    res.json(userToJson(updated));
+    res.json(userToJson(updated, await listIdentities(actor.id)));
   }),
 );
 

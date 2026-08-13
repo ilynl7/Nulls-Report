@@ -12,6 +12,8 @@ export interface Message {
   reportId: number;
   authorId: number;
   authorName: string;
+  /** @nullable */
+  authorRole?: string | null;
   body: string;
   isInternal: boolean;
   attachments: Attachment[];

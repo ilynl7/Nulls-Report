@@ -69,3 +69,18 @@ export function apiErrorMessage(error: unknown): string {
   }
   return 'Something went wrong. Please try again.';
 }
+
+/** True when the account has at least one trusted authentication method. */
+export function canSubmitReports(user: User | null | undefined): boolean {
+  return Boolean(user?.hasTrustedAuth);
+}
+
+/** Returns a linked auth method by provider, or null. */
+export function authMethodOf(user: User | null | undefined, provider: string) {
+  return user?.authMethods?.find((m) => m.provider === provider) ?? null;
+}
+
+/** Starts a provider OAuth flow in the same tab, returning to `returnTo`. */
+export function startProviderAuth(provider: 'discord', returnTo: string) {
+  window.location.assign(`/api/auth/${provider}/start?returnTo=${encodeURIComponent(returnTo)}`);
+}

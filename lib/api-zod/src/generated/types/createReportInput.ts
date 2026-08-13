@@ -5,13 +5,24 @@
  * Nulls Report production portal API
  * OpenAPI spec version: 0.2.0
  */
-import type { CreateReportInputCategory } from './createReportInputCategory';
+import type { CreateReportInputFields } from './createReportInputFields';
 import type { CreateReportInputGame } from './createReportInputGame';
+import type { CreateReportInputIssueType } from './createReportInputIssueType';
+import type { CreateReportInputPriority } from './createReportInputPriority';
+import type { CreateReportInputVisibility } from './createReportInputVisibility';
 
 export interface CreateReportInput {
   game: CreateReportInputGame;
-  category: CreateReportInputCategory;
-  /** @minLength 1 */
+  issueType?: CreateReportInputIssueType;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  category: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
   subtype: string;
   /**
      * @minLength 3
@@ -23,6 +34,9 @@ export interface CreateReportInput {
      * @maxLength 10000
      */
   details: string;
+  fields?: CreateReportInputFields;
   anonymous: boolean;
+  visibility?: CreateReportInputVisibility;
+  priority?: CreateReportInputPriority;
   attachmentIds?: number[];
 }
