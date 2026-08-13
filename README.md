@@ -259,6 +259,24 @@ docker run -p 8080:8080 --env-file .env nulls-report
 
 Full details in [`editions/docker/README.md`](editions/docker/README.md).
 
+## Branches & releases
+
+The repository is organized as **two independent branches that are never merged**:
+
+| Branch | What it contains | Releases |
+| --- | --- | --- |
+| **`main`** | The full portal source: web app, Express API, database schema, scripts, **and** the Docker edition build source under `editions/docker/` (this is the "factory" — it produces the Docker artifact). | `mainv2`, `mainv3`, … |
+| **`dockermain`** | Only the Docker edition, standalone at the repository root: the self-contained `server.js`, the prebuilt `dist/` web app, `Dockerfile`, compose files, and this edition's README. Nothing else — no monorepo, no build tooling. | `dockermainv2`…, `dockermainv3`, … |
+
+- **Never merge `dockermain` into `main`** (or the reverse). They diverge on purpose: `main`
+  is the portal, `dockermain` is the prebuilt Docker product line.
+- **How a Docker release is made:** changes land on `main` → rebuild the edition
+  (`pnpm --filter @workspace/api-server run build:docker-edition` + fresh web build) → copy
+  the artifacts onto `dockermain` → tag a `dockermainvX` release. The `editions/docker/`
+  source folder on `main` stays in sync with what gets shipped on `dockermain`.
+- **Version numbering is parallel:** a `mainvX` portal release and its matching
+  `dockermainvX` Docker release contain the same application, built the same way.
+
 ## Project structure
 
 ```
