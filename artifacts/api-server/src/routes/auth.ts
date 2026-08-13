@@ -199,6 +199,9 @@ router.get(
     const { clientId } = providerConfig("discord");
     const returnTo = safeReturnTo(String(req.query.returnTo ?? ""));
     const state = randomBytes(24).toString("hex");
+    const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "")
+      .split(",")[0]
+      .trim();
     res.cookie(
       OAUTH_STATE_COOKIE,
       JSON.stringify({ state, returnTo }),
@@ -207,11 +210,10 @@ router.get(
         sameSite: "lax",
         path: "/",
         maxAge: 10 * 60 * 1000,
-        ...(process.env.NODE_ENV === "production" ||
-        req.secure ||
-        String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim() === "https"
-          ? { secure: true }
-          : {}),
+        // Scheme-based only (never NODE_ENV): a Secure cookie on an http page
+        // is rejected by browsers, which would break the whole OAuth flow on
+        // plain-http hosts (e.g. the Docker edition on a VPS).
+        ...(req.secure || forwardedProto === "https" ? { secure: true } : {}),
       },
     );
     const redirectUri = encodeURIComponent(discordRedirectUri(req));

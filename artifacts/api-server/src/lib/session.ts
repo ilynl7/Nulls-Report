@@ -18,10 +18,12 @@ export function newSessionToken(): string {
 }
 
 /**
- * Cookie flags. `secure` follows the request scheme (X-Forwarded-Proto in
- * front of proxies) so it works on https previews, the Docker edition and
- * local http development alike. The cookie only ever holds the opaque
- * session token — all identity data stays server-side.
+ * Cookie flags. `secure` follows the actual request scheme (X-Forwarded-Proto
+ * in front of proxies; never NODE_ENV) so cookies work on https previews, on
+ * the Docker edition, and on plain-http hosts alike — a `Secure` cookie on an
+ * http page is silently rejected by browsers, which breaks login entirely.
+ * The cookie only ever holds the opaque session token — all identity data
+ * stays server-side.
  */
 export function cookieOptions(req: Request): {
   httpOnly: true;
@@ -32,8 +34,7 @@ export function cookieOptions(req: Request): {
   const forwarded = String(req.headers["x-forwarded-proto"] ?? "")
     .split(",")[0]
     .trim();
-  const secure =
-    process.env.NODE_ENV === "production" || req.secure || forwarded === "https";
+  const secure = req.secure || forwarded === "https";
   return { httpOnly: true, sameSite: "lax", secure, path: "/" };
 }
 
