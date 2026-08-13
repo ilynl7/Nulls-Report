@@ -1,6 +1,6 @@
 {
   "name": "nulls-report-docker-edition",
-  "version": "1.0.0",
+  "version": "3.3.0",
   "description": "Nulls Report portal — Docker edition. One self-contained server.js runs the whole app.",
   "private": true,
   "type": "module",

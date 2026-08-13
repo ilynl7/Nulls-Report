@@ -14,8 +14,8 @@
 #   CMD ["node", "server.js"]
 #
 # All configuration comes from environment variables (DATABASE_URL,
-# SESSION_SECRET, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, PORT, …). Nothing
-# is baked in, so the same image works in dev, staging, and production.
+# DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, PUBLIC_URL, ADMIN_TAG, PORT, …).
+# Nothing is baked in, so the same image works in dev, staging, and production.
 # ============================================================================
 
 # ---- Build stage: install deps, build the web app, bundle server.js ----
