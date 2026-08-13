@@ -59,4 +59,10 @@ if (Number.isNaN(port) || port <= 0) {
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`[nulls-report] listening on 0.0.0.0:${port}`);
+  console.log(
+    `[nulls-report] the address above is the INTERNAL port. To reach it from the internet,\n` +
+      `[nulls-report] either set PORT=<publicPort> when starting, or map the host port to it\n` +
+      `[nulls-report] (e.g. docker run -p <publicPort>:${port} ...). The host URL you type in the\n` +
+      `[nulls-report] browser (http://<host>:<publicPort>/) is decided by your server/hosting panel.`,
+  );
 });

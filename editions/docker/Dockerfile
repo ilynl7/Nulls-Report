@@ -42,8 +42,6 @@ WORKDIR /app
 
 COPY --from=build /repo/editions/docker/package.json /app/package.json
 COPY --from=build /repo/editions/docker/server.js /app/server.js
-COPY --from=build /repo/editions/docker/pino-*.js /app/
-COPY --from=build /repo/editions/docker/thread-stream-worker.js /app/
 COPY --from=build /repo/artifacts/nulls-report/dist/public /app/dist
 
 EXPOSE 8080

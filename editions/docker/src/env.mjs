@@ -8,6 +8,11 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
+// Production semantics for the bundled app: plain JSON logs to stdout (no
+// pino-pretty worker files needed), which keeps server.js fully
+// self-contained and works perfectly with `docker logs`.
+if (!process.env.NODE_ENV) process.env.NODE_ENV = "production";
+
 function loadEnvFile(file) {
   const content = readFileSync(file, "utf8");
   for (const line of content.split(/\r?\n/)) {

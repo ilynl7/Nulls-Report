@@ -5,11 +5,9 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readdirSync, rmSync, statSync } from "node:fs";
+import { rmSync, statSync } from "node:fs";
 import { build as esbuild } from "esbuild";
-import esbuildPluginPino from "esbuild-plugin-pino";
 
-// Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies.
 globalThis.require = createRequire(import.meta.url);
 
 const pkgDir = path.dirname(fileURLToPath(import.meta.url)); // artifacts/api-server
@@ -96,13 +94,7 @@ const EXTERNAL = [
 
 // Remove previous generated outputs (never the edition source).
 function cleanGenerated() {
-  const generated = ["server.js", "server.js.map", "server..js"];
-  for (const name of readdirSync(editionDir)) {
-    if (name.startsWith("pino-") || name.startsWith("thread-stream-")) {
-      generated.push(name);
-    }
-  }
-  for (const name of generated) {
+  for (const name of ["server.js", "server.js.map", "server..js"]) {
     rmSync(path.join(editionDir, name), { force: true });
   }
 }
@@ -127,10 +119,9 @@ async function buildEdition() {
     // @workspace/*, …) resolve from the entry under editions/docker.
     nodePaths: [path.join(repoRoot, "artifacts", "api-server", "node_modules")],
     sourcemap: false,
-    plugins: [
-      // pino relies on workers to handle logging; keep the transports working.
-      esbuildPluginPino({ transports: ["pino-pretty"] }),
-    ],
+    // No esbuild-plugin-pino: the edition runs with NODE_ENV=production, so
+    // pino logs plain JSON to stdout without worker threads — server.js is
+    // truly one file with zero runtime siblings.
     // Make sure packages that are cjs only (e.g. express) but are bundled
     // continue to work in our esm output file.
     banner: {
@@ -146,7 +137,8 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
   const sizeKb = Math.round(statSync(path.join(editionDir, "server.js")).size / 1024);
   const outputs = Object.keys(result.metafile?.outputs ?? {}).map((f) => path.basename(f));
-  console.log(`[docker-edition] wrote ${sizeKb} KB bundle + ${outputs.filter((n) => n !== "server.js").join(", ") || "no worker files"}`);
+  const extra = outputs.filter((n) => n !== "server.js");
+  console.log(`[docker-edition] wrote ${sizeKb} KB bundle${extra.length ? ` + ${extra.join(", ")}` : " (single file — no runtime siblings)"}`);
 }
 
 buildEdition().catch((err) => {
