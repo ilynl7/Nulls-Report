@@ -2,21 +2,25 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: Nulls Report production portal API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: account
+  - name: reports
+  - name: notifications
+  - name: administration
+  - name: Storage
+    description: Object storage upload and serving endpoints.
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +28,542 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [account]
+      summary: Get the signed-in portal user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /reports:
+    get:
+      operationId: listReports
+      tags: [reports]
+      summary: List reports visible to the signed-in user
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createReport
+      tags: [reports]
+      summary: Create a private Nulls Brawl ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReportInput"
+      responses:
+        "201":
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /reports/{id}:
+    get:
+      operationId: getReport
+      tags: [reports]
+      summary: Get a report and its permitted history
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      responses:
+        "200":
+          description: Report detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateReport
+      tags: [reports]
+      summary: Update a report as staff
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportInput"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reports/{id}/verify:
+    post:
+      operationId: verifyReport
+      tags: [reports]
+      summary: Verify or reject a ticket as a moderator
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyReportInput"
+      responses:
+        "200":
+          description: Verified report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reports/{id}/forward:
+    post:
+      operationId: forwardReport
+      tags: [reports]
+      summary: Forward a verified report to administrators
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      responses:
+        "200":
+          description: Forwarded report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reports/{id}/messages:
+    get:
+      operationId: listReportMessages
+      tags: [reports]
+      summary: List permitted ticket messages
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createReportMessage
+      tags: [reports]
+      summary: Add a permitted ticket reply or internal note
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageInput"
+      responses:
+        "201":
+          description: Message created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /reports/{id}/reply-permission:
+    post:
+      operationId: setReportReplyPermission
+      tags: [reports]
+      summary: Enable or disable replies from the report owner
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplyPermissionInput"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List current user notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark one notification read
+      parameters:
+        - $ref: "#/components/parameters/NotificationId"
+      responses:
+        "204":
+          description: Notification marked read
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /admin/users:
+    get:
+      operationId: listPortalUsers
+      tags: [administration]
+      summary: List portal users for administrators
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users/{id}/role:
+    patch:
+      operationId: updatePortalUserRole
+      tags: [administration]
+      summary: Update a portal user role
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleUpdateInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for a private attachment upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an authorized private attachment
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
+  parameters:
+    ReportId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
+    NotificationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Insufficient permission
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
-
+      required: [status]
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    User:
+      type: object
+      properties:
+        id: { type: number }
+        clerkUserId: { type: string }
+        email: { type: ["string", "null"] }
+        displayName: { type: string }
+        role:
+          type: string
+          enum: [user, moderator, administrator]
+        nullsConnectId: { type: ["string", "null"] }
+        preferences:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+      required: [id, clerkUserId, displayName, role, preferences, createdAt]
+    ReportSummary:
+      type: object
+      properties:
+        id: { type: number }
+        ticketNumber: { type: string }
+        ownerId: { type: number }
+        ownerName: { type: string }
+        game: { type: string }
+        category: { type: string }
+        subtype: { type: string }
+        title: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        allowUserMessages: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, ticketNumber, ownerId, ownerName, game, category, subtype, title, status, priority, allowUserMessages, createdAt, updatedAt]
+    ReportDetail:
+      allOf:
+        - $ref: "#/components/schemas/ReportSummary"
+        - type: object
+          properties:
+            details: { type: string }
+            history:
+              type: array
+              items: { $ref: "#/components/schemas/HistoryItem" }
+            attachments:
+              type: array
+              items: { $ref: "#/components/schemas/Attachment" }
+          required: [details, history, attachments]
+    HistoryItem:
+      type: object
+      properties:
+        id: { type: number }
+        action: { type: string }
+        fromStatus: { type: ["string", "null"] }
+        toStatus: { type: ["string", "null"] }
+        details: { type: ["string", "null"] }
+        actorName: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+      required: [id, action, createdAt]
+    Message:
+      type: object
+      properties:
+        id: { type: number }
+        reportId: { type: number }
+        authorId: { type: number }
+        authorName: { type: string }
+        body: { type: string }
+        isInternal: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required: [id, reportId, authorId, authorName, body, isInternal, createdAt]
+    Attachment:
+      type: object
+      properties:
+        id: { type: number }
+        fileName: { type: string }
+        contentType: { type: string }
+        size: { type: number }
+        downloadPath: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, fileName, contentType, size, downloadPath, createdAt]
+    Notification:
+      type: object
+      properties:
+        id: { type: number }
+        reportId: { type: ["integer", "null"] }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        readAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+      required: [id, type, title, body, createdAt]
+    CreateReportInput:
+      type: object
+      properties:
+        game: { type: string, enum: [nulls-brawl, nulls-clash-of-clans, nulls-royale, nulls-royale-infinity] }
+        category: { type: string, enum: [bug, account, server] }
+        subtype: { type: string, minLength: 1 }
+        title: { type: string, minLength: 3, maxLength: 160 }
+        details: { type: string, minLength: 10, maxLength: 10000 }
+        anonymous: { type: boolean }
+        attachmentIds:
+          type: array
+          items: { type: number }
+      required: [game, category, subtype, title, details, anonymous]
+    UpdateReportInput:
+      type: object
+      properties:
+        title: { type: string, minLength: 3, maxLength: 160 }
+        status: { type: string, enum: [submitted, verifying, rejected, verified, forwarded, waiting_for_user, in_progress, resolved, closed] }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        details: { type: string, minLength: 10, maxLength: 10000 }
+    VerifyReportInput:
+      type: object
+      properties:
+        verified: { type: boolean }
+        reason: { type: string, maxLength: 2000 }
+      required: [verified]
+    CreateMessageInput:
+      type: object
+      properties:
+        body: { type: string, minLength: 1, maxLength: 10000 }
+        isInternal: { type: boolean }
+      required: [body]
+    ReplyPermissionInput:
+      type: object
+      properties:
+        enabled: { type: boolean }
+      required: [enabled]
+    RoleUpdateInput:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, moderator, administrator]
+      required: [role]
+    UploadUrlRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: number, minimum: 1, maximum: 52428800 }
+        contentType: { type: string, minLength: 1, maxLength: 255 }
+      required: [name, size, contentType]
+    UploadUrlResponse:
+      type: object
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+      required: [uploadURL, objectPath]

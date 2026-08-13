@@ -5,7 +5,8 @@
  * Nulls Report production portal API
  * OpenAPI spec version: 0.2.0
  */
+import type { RoleUpdateInputRole } from './roleUpdateInputRole';
 
-export interface HealthStatus {
-  status: string;
+export interface RoleUpdateInput {
+  role: RoleUpdateInputRole;
 }

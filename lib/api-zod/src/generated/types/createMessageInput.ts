@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface CreateMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 10000
+     */
+  body: string;
+  isInternal?: boolean;
 }

@@ -5,7 +5,9 @@
  * Nulls Report production portal API
  * OpenAPI spec version: 0.2.0
  */
+import type { ErrorEnvelope } from './errorEnvelope';
 
-export interface HealthStatus {
-  status: string;
-}
+/**
+ * Resource not found
+ */
+export type NotFoundResponse = ErrorEnvelope;
