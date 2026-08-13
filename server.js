@@ -95308,7 +95308,7 @@ function authMethodToJson(identity) {
   if (identity.provider === "discord") {
     label = typeof metadata.username === "string" ? metadata.username : null;
   } else if (identity.provider === "nulls_connect") {
-    label = typeof metadata.name === "string" ? metadata.name : null;
+    label = typeof metadata.playerName === "string" ? metadata.playerName : typeof metadata.name === "string" ? metadata.name : null;
   }
   return {
     provider: identity.provider,
@@ -96923,6 +96923,7 @@ init_http();
 init_session3();
 var router9 = (0, import_express9.Router)();
 var NC_BASE = "https://connect.nulls.gg";
+var NC_GAME = "laser";
 var NC_HEADERS = {
   Accept: "application/json",
   Origin: "https://connect.nulls.gg",
@@ -96956,9 +96957,37 @@ function validEmail(value) {
   return email3;
 }
 function loginUrl(email3, pin) {
-  const params = new URLSearchParams({ email: email3, locale: "ru" });
+  const params = new URLSearchParams({ email: email3, game: NC_GAME, locale: "ru" });
   if (pin) params.set("pin", pin);
   return `${NC_BASE}/api/auth/login.v2?${params.toString()}`;
+}
+function normalizeAccount(raw) {
+  const item = raw;
+  const playerId = String(item?.player_id ?? "");
+  if (!playerId) return null;
+  const info = item.player_info ?? {};
+  const name = info.name || info.tag || `Nulls player ${playerId}`;
+  return {
+    playerId,
+    game: item.game || NC_GAME,
+    name,
+    tag: info.tag ?? null
+  };
+}
+async function fetchPlayerAccounts(token) {
+  const data = await ncJson(`${NC_BASE}/api/games/links?game=${NC_GAME}`, {
+    Authorization: `Bearer ${token}`
+  });
+  const rows = Array.isArray(data) ? data : Array.isArray(data?.links) ? data.links : [];
+  return rows.map(normalizeAccount).filter((a5) => a5 !== null);
+}
+async function validatePlayer(token, playerId) {
+  const accounts = await fetchPlayerAccounts(token);
+  const match = accounts.find((a5) => a5.playerId === playerId);
+  if (!match) {
+    throw httpError(403, "That account does not belong to this Nulls Connect token");
+  }
+  return match;
 }
 router9.post(
   "/nulls-connect/auth",
@@ -96978,101 +97007,64 @@ router9.post(
     return res.json(await ncJson(loginUrl(email3, pin)));
   })
 );
-function pick2(data, keys) {
-  for (const key of keys) {
-    const value = data[key];
-    if (value !== void 0 && value !== null && value !== "") return value;
-  }
-  return void 0;
-}
-async function fetchAccountIdentity(token, fallbackEmail) {
-  const attempts = ["/api/me", "/api/account", "/api/user"].map((path5) => `${NC_BASE}${path5}`);
-  for (const url2 of attempts) {
-    try {
-      const raw = await ncJson(url2, { Authorization: `Bearer ${token}` });
-      if (!raw || typeof raw !== "object") continue;
-      const data = raw;
-      const accountId = pick2(data, ["account_id", "id", "user_id", "profile_id", "uid"]);
-      const email3 = pick2(data, ["email", "mail", "login"]);
-      const name = pick2(data, ["name", "display_name", "username", "handle", "nick"]);
-      if (accountId || email3) {
-        return {
-          accountId: String(accountId ?? email3 ?? fallbackEmail),
-          name: typeof name === "string" && name.trim() ? name.trim().slice(0, 80) : null,
-          email: String(email3 ?? fallbackEmail)
-        };
-      }
-    } catch {
+router9.post(
+  "/nulls-connect/links",
+  asyncHandler(async (req, res) => {
+    const token = String(req.body?.token ?? "").trim();
+    if (!token) {
+      throw httpError(400, "Missing Nulls Connect token");
     }
-  }
-  return { accountId: fallbackEmail, name: null, email: fallbackEmail };
-}
-function normalizeLink(raw, game) {
-  const item = raw;
-  const playerId = String(item?.player_id ?? "");
-  if (!playerId) return null;
-  return {
-    game: item?.game || game,
-    playerId,
-    name: item.player_info?.name || item.player_info?.tag || `Nulls player ${playerId}`,
-    tag: item.player_info?.tag
-  };
-}
-async function fetchGameAccounts(token) {
-  const attempts = [
-    { game: "laser", url: `${NC_BASE}/api/games/links` },
-    { game: "laser", url: `${NC_BASE}/api/games/links?game=laser` }
-  ];
-  for (const attempt of attempts) {
-    try {
-      const data = await ncJson(attempt.url, {
-        Authorization: `Bearer ${token}`
-      });
-      const rows = Array.isArray(data) ? data : Array.isArray(data?.links) ? data.links : [];
-      const links = rows.map((row) => normalizeLink(row, attempt.game)).filter((l3) => l3 !== null);
-      if (links.length > 0) return links;
-    } catch {
-    }
-  }
-  return [];
-}
+    return res.json({ links: await fetchPlayerAccounts(token) });
+  })
+);
 router9.post(
   "/nulls-connect/complete",
   asyncHandler(async (req, res) => {
     const viewer = req.portalUser ?? null;
     const token = String(req.body?.token ?? "").trim();
-    if (!token) {
-      throw httpError(400, "Missing Nulls Connect token");
-    }
+    const playerId = String(req.body?.playerId ?? "").trim();
     const email3 = validEmail(req.body?.email);
-    const identity = await fetchAccountIdentity(token, email3);
-    const gameAccounts = await fetchGameAccounts(token).catch(() => []);
+    if (!token || !playerId) {
+      throw httpError(400, "Missing Nulls Connect account details");
+    }
+    const account = await validatePlayer(token, playerId);
     const metadata = {
-      name: identity.name,
-      email: identity.email,
-      accountId: identity.accountId,
-      gameAccounts
+      playerId: account.playerId,
+      playerName: account.name,
+      playerTag: account.tag ?? null,
+      game: account.game,
+      email: email3
     };
     let user = viewer;
-    const existing = await findIdentity("nulls_connect", identity.accountId);
+    let existing = await findIdentity("nulls_connect", account.playerId);
+    if (!existing && !viewer) {
+      const all = await db.select().from(authIdentitiesTable).where(eq(authIdentitiesTable.provider, "nulls_connect"));
+      const emailMatch = all.find(
+        (i5) => i5.metadata?.email === email3
+      );
+      if (emailMatch) existing = emailMatch;
+    }
     if (user) {
       if (existing && existing.portalUserId !== user.id) {
-        throw httpError(409, "That Nulls Connect account is already linked to another portal account");
+        throw httpError(
+          409,
+          "That Nulls Connect account is already linked to another portal account"
+        );
       }
-      await linkIdentity("nulls_connect", identity.accountId, user.id, metadata);
+      await linkIdentity("nulls_connect", account.playerId, user.id, metadata);
     } else if (existing) {
       const owners = await db.select().from(portalUsersTable).where(eq(portalUsersTable.id, existing.portalUserId)).limit(1);
       if (owners.length === 0) throw httpError(500, "Linked account no longer exists");
       user = owners[0];
-      await linkIdentity("nulls_connect", identity.accountId, user.id, metadata);
+      await linkIdentity("nulls_connect", account.playerId, user.id, metadata);
     } else {
       const [created] = await db.insert(portalUsersTable).values({
         tag: await generateUniqueTag(),
-        displayName: identity.name ?? identity.email.split("@")[0] ?? "Nulls account",
+        displayName: account.name.slice(0, 80),
         role: await firstAccountRole()
       }).returning();
       user = created;
-      await linkIdentity("nulls_connect", identity.accountId, created.id, metadata);
+      await linkIdentity("nulls_connect", account.playerId, created.id, metadata);
     }
     if (user.blocked) {
       throw httpError(403, "This account has been blocked. Contact an administrator.");
@@ -97174,6 +97166,14 @@ app_default.listen(port, "0.0.0.0", () => {
 [nulls-report] (e.g. docker run -p <publicPort>:${port} ...). The host URL you type in the
 [nulls-report] browser (http://<host>:<publicPort>/) is decided by your server/hosting panel.`
   );
+  if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
+    const publicUrl2 = (process.env.PUBLIC_URL ?? "").trim();
+    console.log(
+      `[nulls-report] NOTE: Discord sign-in requires an https callback (Discord rejects http redirect URIs).
+[nulls-report] If this host is plain http, Discord login will not work - add TLS in front (Caddy/nginx/tunnel)
+[nulls-report] and set PUBLIC_URL to the https origin, or use Nulls Connect which works over http.` + (publicUrl2.startsWith("http://") ? ` (PUBLIC_URL is currently http: ${publicUrl2})` : "")
+    );
+  }
 });
 /*! Bundled license information:
 
