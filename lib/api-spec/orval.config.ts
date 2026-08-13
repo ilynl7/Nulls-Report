@@ -54,19 +54,17 @@ export default defineConfig({
       schemas: { path: "generated/types", type: "typescript" },
       mode: "split",
       clean: true,
-      prettier: true,
-      override: {
-        zod: {
-          coerce: {
-            query: ['boolean', 'number', 'string'],
-            param: ['boolean', 'number', 'string'],
-            body: ['bigint', 'date'],
-            response: ['bigint', 'date'],
+      prettier: true,        override: {
+          zod: {
+            coerce: {
+              query: ['boolean', 'number', 'string'],
+              param: ['boolean', 'number', 'string'],
+              body: ['bigint', 'date'],
+              response: ['bigint', 'date'],
+            },
           },
+          useDates: true,
         },
-        useDates: true,
-        useBigInt: true,
-      },
     },
   },
 });

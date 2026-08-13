@@ -42,6 +42,27 @@ paths:
                 $ref: "#/components/schemas/User"
         "401":
           $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: updateCurrentUser
+      tags: [account]
+      summary: Update the signed-in portal user's account details
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /reports:
     get:
       operationId: listReports
@@ -292,6 +313,76 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+    delete:
+      operationId: clearPortalUsers
+      tags: [administration]
+      summary: Clear the entire user database (all accounts, reports, messages, notifications)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClearDatabaseInput"
+      responses:
+        "200":
+          description: Database cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users/{id}/block:
+    patch:
+      operationId: updatePortalUserBlock
+      tags: [administration]
+      summary: Block or unblock a portal user
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlockUpdateInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/users/{id}:
+    delete:
+      operationId: deletePortalUser
+      tags: [administration]
+      summary: Remove a user and all their data from the portal
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  removed: { type: number }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /admin/users/{id}/role:
     patch:
       operationId: updatePortalUserRole
@@ -431,7 +522,10 @@ components:
         role:
           type: string
           enum: [user, moderator, administrator]
+        blocked: { type: boolean }
         nullsConnectId: { type: ["string", "null"] }
+        nullsConnectName: { type: ["string", "null"] }
+        avatarPath: { type: ["string", "null"] }
         preferences:
           type: object
           additionalProperties: true
@@ -487,8 +581,11 @@ components:
         authorName: { type: string }
         body: { type: string }
         isInternal: { type: boolean }
+        attachments:
+          type: array
+          items: { $ref: "#/components/schemas/Attachment" }
         createdAt: { type: string, format: date-time }
-      required: [id, reportId, authorId, authorName, body, isInternal, createdAt]
+      required: [id, reportId, authorId, authorName, body, isInternal, attachments, createdAt]
     Attachment:
       type: object
       properties:
@@ -503,7 +600,7 @@ components:
       type: object
       properties:
         id: { type: number }
-        reportId: { type: ["integer", "null"] }
+        reportId: { type: ["number", "null"] }
         type: { type: string }
         title: { type: string }
         body: { type: string }
@@ -541,6 +638,10 @@ components:
       properties:
         body: { type: string, minLength: 1, maxLength: 10000 }
         isInternal: { type: boolean }
+        attachmentIds:
+          type: array
+          maxItems: 10
+          items: { type: number }
       required: [body]
     ReplyPermissionInput:
       type: object
@@ -554,6 +655,16 @@ components:
           type: string
           enum: [user, moderator, administrator]
       required: [role]
+    BlockUpdateInput:
+      type: object
+      properties:
+        blocked: { type: boolean }
+      required: [blocked]
+    ClearDatabaseInput:
+      type: object
+      properties:
+        confirm: { type: boolean }
+      required: [confirm]
     UploadUrlRequest:
       type: object
       properties:
@@ -564,6 +675,16 @@ components:
     UploadUrlResponse:
       type: object
       properties:
+        id: { type: number }
         uploadURL: { type: string }
         objectPath: { type: string }
-      required: [uploadURL, objectPath]
+      required: [id, uploadURL, objectPath]
+    UpdateUserInput:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        nullsConnectId: { type: ["string", "null"], maxLength: 200 }
+        preferences:
+          type: object
+          additionalProperties: true
+      description: At least one field is required.

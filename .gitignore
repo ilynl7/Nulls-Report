@@ -47,3 +47,11 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local attachment storage (dev mode, when no S3 bucket is configured)
+.local-uploads/
+
+# Secrets & local env — never commit these
+.env
+.env.local
+.env.*.local

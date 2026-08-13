@@ -15,8 +15,13 @@ export interface User {
   email?: string | null;
   displayName: string;
   role: UserRole;
+  blocked?: boolean;
   /** @nullable */
   nullsConnectId?: string | null;
+  /** @nullable */
+  nullsConnectName?: string | null;
+  /** @nullable */
+  avatarPath?: string | null;
   preferences: UserPreferences;
   createdAt: Date;
 }

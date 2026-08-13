@@ -31,8 +31,13 @@ export interface User {
   email?: string | null;
   displayName: string;
   role: UserRole;
+  blocked?: boolean;
   /** @nullable */
   nullsConnectId?: string | null;
+  /** @nullable */
+  nullsConnectName?: string | null;
+  /** @nullable */
+  avatarPath?: string | null;
   preferences: UserPreferences;
   createdAt: string;
 }
@@ -89,6 +94,7 @@ export interface Message {
   authorName: string;
   body: string;
   isInternal: boolean;
+  attachments: Attachment[];
   createdAt: string;
 }
 
@@ -195,6 +201,8 @@ export interface CreateMessageInput {
      */
   body: string;
   isInternal?: boolean;
+  /** @maxItems 10 */
+  attachmentIds?: number[];
 }
 
 export interface ReplyPermissionInput {
@@ -212,6 +220,14 @@ export const RoleUpdateInputRole = {
 
 export interface RoleUpdateInput {
   role: RoleUpdateInputRole;
+}
+
+export interface BlockUpdateInput {
+  blocked: boolean;
+}
+
+export interface ClearDatabaseInput {
+  confirm: boolean;
 }
 
 export interface UploadUrlRequest {
@@ -233,8 +249,28 @@ export interface UploadUrlRequest {
 }
 
 export interface UploadUrlResponse {
+  id: number;
   uploadURL: string;
   objectPath: string;
+}
+
+export type UpdateUserInputPreferences = { [key: string]: unknown };
+
+/**
+ * At least one field is required.
+ */
+export interface UpdateUserInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  displayName?: string;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  nullsConnectId?: string | null;
+  preferences?: UpdateUserInputPreferences;
 }
 
 /**
@@ -260,5 +296,11 @@ export type NotFoundResponse = ErrorEnvelope;
 export type ListReportsParams = {
 status?: string;
 search?: string;
+};
+
+export type ClearPortalUsers200 = { [key: string]: unknown };
+
+export type DeletePortalUser200 = {
+  removed?: number;
 };
 

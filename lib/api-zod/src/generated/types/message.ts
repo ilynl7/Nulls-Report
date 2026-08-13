@@ -5,6 +5,7 @@
  * Nulls Report production portal API
  * OpenAPI spec version: 0.2.0
  */
+import type { Attachment } from './attachment';
 
 export interface Message {
   id: number;
@@ -13,5 +14,6 @@ export interface Message {
   authorName: string;
   body: string;
   isInternal: boolean;
+  attachments: Attachment[];
   createdAt: Date;
 }

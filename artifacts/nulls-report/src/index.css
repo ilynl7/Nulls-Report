@@ -140,5 +140,8 @@ body { min-width: 320px; }
 @keyframes page-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse-dot { 0%,100% { opacity:1 } 50% { opacity:.4 } }
 .live-dot { animation: pulse-dot 2s ease-in-out infinite; }
+@keyframes ticker-move { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.ticker-track { animation: ticker-move 36s linear infinite; }
+.ticker-track:hover { animation-play-state: paused; }
 .scrollbar-thin::-webkit-scrollbar { width: 5px; height: 5px; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--foreground) / .14); border-radius: 99px; }

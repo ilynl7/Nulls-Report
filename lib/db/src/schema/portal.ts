@@ -15,13 +15,21 @@ export const portalUsersTable = pgTable("portal_users", {
   email: text("email"),
   displayName: text("display_name").notNull().default("Nulls reporter"),
   role: text("role").notNull().default("user"),
+  blocked: boolean("blocked").notNull().default(false),
   preferences: jsonb("preferences").$type<Record<string, unknown>>().notNull().default({}),
   nullsConnectId: text("nulls_connect_id"),
+  nullsConnectName: text("nulls_connect_name"),
+  avatarPath: text("avatar_path"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+});
+
+export const portalCountersTable = pgTable("portal_counters", {
+  name: text("name").primaryKey(),
+  value: integer("value").notNull().default(0),
 });
 
 export const portalReportsTable = pgTable("portal_reports", {
@@ -33,6 +41,7 @@ export const portalReportsTable = pgTable("portal_reports", {
   subtype: text("subtype").notNull(),
   title: text("title").notNull(),
   details: text("details").notNull(),
+  anonymous: boolean("anonymous").notNull().default(false),
   status: text("status").notNull().default("submitted"),
   priority: text("priority").notNull().default("normal"),
   allowUserMessages: boolean("allow_user_messages").notNull().default(false),
@@ -70,8 +79,22 @@ export const reportMessagesTable = pgTable("report_messages", {
 export const reportAttachmentsTable = pgTable("report_attachments", {
   id: serial("id").primaryKey(),
   reportId: integer("report_id").notNull().references(() => portalReportsTable.id),
+  // Set when the attachment was sent inside a ticket message; null for
+  // attachments attached directly to the report at submission.
+  messageId: integer("message_id").references(() => reportMessagesTable.id),
   uploaderId: integer("uploader_id").notNull().references(() => portalUsersTable.id),
-  objectPath: text("object_path").notNull(),
+  objectPath: text("object_path").notNull().unique(),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Uploads requested via the storage API but not yet attached to a report. */
+export const pendingUploadsTable = pgTable("pending_uploads", {
+  id: serial("id").primaryKey(),
+  uploaderId: integer("uploader_id").notNull().references(() => portalUsersTable.id),
+  objectPath: text("object_path").notNull().unique(),
   fileName: text("file_name").notNull(),
   contentType: text("content_type").notNull(),
   size: integer("size").notNull(),
@@ -112,6 +135,10 @@ export const insertReportAttachmentSchema = createInsertSchema(reportAttachments
   id: true,
   createdAt: true,
 });
+export const insertPendingUploadSchema = createInsertSchema(pendingUploadsTable).omit({
+  id: true,
+  createdAt: true,
+});
 export const insertPortalNotificationSchema = createInsertSchema(portalNotificationsTable).omit({
   id: true,
   createdAt: true,
@@ -123,4 +150,5 @@ export type PortalReport = typeof portalReportsTable.$inferSelect;
 export type ReportHistory = typeof reportHistoryTable.$inferSelect;
 export type ReportMessage = typeof reportMessagesTable.$inferSelect;
 export type ReportAttachment = typeof reportAttachmentsTable.$inferSelect;
+export type PendingUpload = typeof pendingUploadsTable.$inferSelect;
 export type PortalNotification = typeof portalNotificationsTable.$inferSelect;

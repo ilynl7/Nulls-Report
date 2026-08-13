@@ -25,7 +25,40 @@ export const GetCurrentUserResponse = zod.object({
   "email": zod.string().nullish(),
   "displayName": zod.string(),
   "role": zod.enum(['user', 'moderator', 'administrator']),
+  "blocked": zod.boolean().optional(),
   "nullsConnectId": zod.string().nullish(),
+  "nullsConnectName": zod.string().nullish(),
+  "avatarPath": zod.string().nullish(),
+  "preferences": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update the signed-in portal user's account details
+ */
+export const updateCurrentUserBodyDisplayNameMax = 80;
+
+export const updateCurrentUserBodyNullsConnectIdMax = 200;
+
+
+
+export const UpdateCurrentUserBody = zod.object({
+  "displayName": zod.string().min(1).max(updateCurrentUserBodyDisplayNameMax).optional(),
+  "nullsConnectId": zod.string().max(updateCurrentUserBodyNullsConnectIdMax).nullish(),
+  "preferences": zod.record(zod.string(), zod.unknown()).optional()
+}).describe('At least one field is required.')
+
+export const UpdateCurrentUserResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "email": zod.string().nullish(),
+  "displayName": zod.string(),
+  "role": zod.enum(['user', 'moderator', 'administrator']),
+  "blocked": zod.boolean().optional(),
+  "nullsConnectId": zod.string().nullish(),
+  "nullsConnectName": zod.string().nullish(),
+  "avatarPath": zod.string().nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date()
 })
@@ -325,6 +358,14 @@ export const ListReportMessagesResponseItem = zod.object({
   "authorName": zod.string(),
   "body": zod.string(),
   "isInternal": zod.boolean(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "size": zod.number(),
+  "downloadPath": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
   "createdAt": zod.coerce.date()
 })
 export const ListReportMessagesResponse = zod.array(ListReportMessagesResponseItem)
@@ -339,11 +380,14 @@ export const CreateReportMessageParams = zod.object({
 
 export const createReportMessageBodyBodyMax = 10000;
 
+export const createReportMessageBodyAttachmentIdsMax = 10;
+
 
 
 export const CreateReportMessageBody = zod.object({
   "body": zod.string().min(1).max(createReportMessageBodyBodyMax),
-  "isInternal": zod.boolean().optional()
+  "isInternal": zod.boolean().optional(),
+  "attachmentIds": zod.array(zod.number()).max(createReportMessageBodyAttachmentIdsMax).optional()
 })
 
 export const CreateReportMessageResponse = zod.object({
@@ -353,6 +397,14 @@ export const CreateReportMessageResponse = zod.object({
   "authorName": zod.string(),
   "body": zod.string(),
   "isInternal": zod.boolean(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number(),
+  "fileName": zod.string(),
+  "contentType": zod.string(),
+  "size": zod.number(),
+  "downloadPath": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
   "createdAt": zod.coerce.date()
 })
 
@@ -409,7 +461,7 @@ export const SetReportReplyPermissionResponse = zod.object({
  */
 export const ListNotificationsResponseItem = zod.object({
   "id": zod.number(),
-  "reportId": zod.int().nullish(),
+  "reportId": zod.number().nullish(),
   "type": zod.string(),
   "title": zod.string(),
   "body": zod.string(),
@@ -438,11 +490,62 @@ export const ListPortalUsersResponseItem = zod.object({
   "email": zod.string().nullish(),
   "displayName": zod.string(),
   "role": zod.enum(['user', 'moderator', 'administrator']),
+  "blocked": zod.boolean().optional(),
   "nullsConnectId": zod.string().nullish(),
+  "nullsConnectName": zod.string().nullish(),
+  "avatarPath": zod.string().nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date()
 })
 export const ListPortalUsersResponse = zod.array(ListPortalUsersResponseItem)
+
+
+/**
+ * @summary Clear the entire user database (all accounts, reports, messages, notifications)
+ */
+export const ClearPortalUsersBody = zod.object({
+  "confirm": zod.boolean()
+})
+
+export const ClearPortalUsersResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Block or unblock a portal user
+ */
+export const UpdatePortalUserBlockParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdatePortalUserBlockBody = zod.object({
+  "blocked": zod.boolean()
+})
+
+export const UpdatePortalUserBlockResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "email": zod.string().nullish(),
+  "displayName": zod.string(),
+  "role": zod.enum(['user', 'moderator', 'administrator']),
+  "blocked": zod.boolean().optional(),
+  "nullsConnectId": zod.string().nullish(),
+  "nullsConnectName": zod.string().nullish(),
+  "avatarPath": zod.string().nullish(),
+  "preferences": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove a user and all their data from the portal
+ */
+export const DeletePortalUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeletePortalUserResponse = zod.object({
+  "removed": zod.number().optional()
+})
 
 
 /**
@@ -462,7 +565,10 @@ export const UpdatePortalUserRoleResponse = zod.object({
   "email": zod.string().nullish(),
   "displayName": zod.string(),
   "role": zod.enum(['user', 'moderator', 'administrator']),
+  "blocked": zod.boolean().optional(),
   "nullsConnectId": zod.string().nullish(),
+  "nullsConnectName": zod.string().nullish(),
+  "avatarPath": zod.string().nullish(),
   "preferences": zod.record(zod.string(), zod.unknown()),
   "createdAt": zod.coerce.date()
 })
@@ -486,6 +592,7 @@ export const RequestUploadUrlBody = zod.object({
 })
 
 export const RequestUploadUrlResponse = zod.object({
+  "id": zod.number(),
   "uploadURL": zod.string(),
   "objectPath": zod.string()
 })

@@ -21,8 +21,12 @@ import type {
 
 import type {
   BadRequestResponse,
+  BlockUpdateInput,
+  ClearDatabaseInput,
+  ClearPortalUsers200,
   CreateMessageInput,
   CreateReportInput,
+  DeletePortalUser200,
   ForbiddenResponse,
   HealthStatus,
   ListReportsParams,
@@ -35,6 +39,7 @@ import type {
   RoleUpdateInput,
   UnauthorizedResponse,
   UpdateReportInput,
+  UpdateUserInput,
   UploadUrlRequest,
   UploadUrlResponse,
   User,
@@ -221,6 +226,77 @@ export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUs
 
 
 
+
+export const getUpdateCurrentUserUrl = () => {
+
+
+
+
+  return `/api/me`
+}
+
+/**
+ * @summary Update the signed-in portal user's account details
+ */
+export const updateCurrentUser = async (updateUserInput: UpdateUserInput, options?: Parameters<typeof customFetch>[1]): Promise<User> => {
+
+  return customFetch<User>(getUpdateCurrentUserUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateUserInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCurrentUserMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUser>>, TError,{data: BodyType<UpdateUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUser>>, TError,{data: BodyType<UpdateUserInput>}, TContext> => {
+
+const mutationKey = ['updateCurrentUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCurrentUser>>, {data: BodyType<UpdateUserInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateCurrentUser(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCurrentUserMutationResult = NonNullable<Awaited<ReturnType<typeof updateCurrentUser>>>
+    export type UpdateCurrentUserMutationBody = BodyType<UpdateUserInput>
+    export type UpdateCurrentUserMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+
+    /**
+ * @summary Update the signed-in portal user's account details
+ */
+export const useUpdateCurrentUser = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUser>>, TError,{data: BodyType<UpdateUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCurrentUser>>,
+        TError,
+        {data: BodyType<UpdateUserInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCurrentUserMutationOptions(options));
+    }
 
 export const getListReportsUrl = (params?: ListReportsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -1114,6 +1190,220 @@ export function useListPortalUsers<TData = Awaited<ReturnType<typeof listPortalU
 
 
 
+
+export const getClearPortalUsersUrl = () => {
+
+
+
+
+  return `/api/admin/users`
+}
+
+/**
+ * @summary Clear the entire user database (all accounts, reports, messages, notifications)
+ */
+export const clearPortalUsers = async (clearDatabaseInput: ClearDatabaseInput, options?: Parameters<typeof customFetch>[1]): Promise<ClearPortalUsers200> => {
+
+  return customFetch<ClearPortalUsers200>(getClearPortalUsersUrl(),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clearDatabaseInput)
+  }
+);}
+
+
+
+
+
+export const getClearPortalUsersMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearPortalUsers>>, TError,{data: BodyType<ClearDatabaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clearPortalUsers>>, TError,{data: BodyType<ClearDatabaseInput>}, TContext> => {
+
+const mutationKey = ['clearPortalUsers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clearPortalUsers>>, {data: BodyType<ClearDatabaseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  clearPortalUsers(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClearPortalUsersMutationResult = NonNullable<Awaited<ReturnType<typeof clearPortalUsers>>>
+    export type ClearPortalUsersMutationBody = BodyType<ClearDatabaseInput>
+    export type ClearPortalUsersMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Clear the entire user database (all accounts, reports, messages, notifications)
+ */
+export const useClearPortalUsers = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearPortalUsers>>, TError,{data: BodyType<ClearDatabaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof clearPortalUsers>>,
+        TError,
+        {data: BodyType<ClearDatabaseInput>},
+        TContext
+      > => {
+      return useMutation(getClearPortalUsersMutationOptions(options));
+    }
+
+export const getUpdatePortalUserBlockUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/users/${id}/block`
+}
+
+/**
+ * @summary Block or unblock a portal user
+ */
+export const updatePortalUserBlock = async (id: number,
+    blockUpdateInput: BlockUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<User> => {
+
+  return customFetch<User>(getUpdatePortalUserBlockUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(blockUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePortalUserBlockMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePortalUserBlock>>, TError,{id: number;data: BodyType<BlockUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePortalUserBlock>>, TError,{id: number;data: BodyType<BlockUpdateInput>}, TContext> => {
+
+const mutationKey = ['updatePortalUserBlock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePortalUserBlock>>, {id: number;data: BodyType<BlockUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePortalUserBlock(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePortalUserBlockMutationResult = NonNullable<Awaited<ReturnType<typeof updatePortalUserBlock>>>
+    export type UpdatePortalUserBlockMutationBody = BodyType<BlockUpdateInput>
+    export type UpdatePortalUserBlockMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+    /**
+ * @summary Block or unblock a portal user
+ */
+export const useUpdatePortalUserBlock = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePortalUserBlock>>, TError,{id: number;data: BodyType<BlockUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePortalUserBlock>>,
+        TError,
+        {id: number;data: BodyType<BlockUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePortalUserBlockMutationOptions(options));
+    }
+
+export const getDeletePortalUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/users/${id}`
+}
+
+/**
+ * @summary Remove a user and all their data from the portal
+ */
+export const deletePortalUser = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DeletePortalUser200> => {
+
+  return customFetch<DeletePortalUser200>(getDeletePortalUserUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePortalUserMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePortalUser>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deletePortalUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePortalUser>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deletePortalUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePortalUserMutationResult = NonNullable<Awaited<ReturnType<typeof deletePortalUser>>>
+
+    export type DeletePortalUserMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+    /**
+ * @summary Remove a user and all their data from the portal
+ */
+export const useDeletePortalUser = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deletePortalUser>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeletePortalUserMutationOptions(options));
+    }
 
 export const getUpdatePortalUserRoleUrl = (id: number,) => {
 

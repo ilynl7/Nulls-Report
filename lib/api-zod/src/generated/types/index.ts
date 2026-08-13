@@ -8,10 +8,14 @@
 
 export * from './attachment';
 export * from './badRequestResponse';
+export * from './blockUpdateInput';
+export * from './clearDatabaseInput';
+export * from './clearPortalUsers200';
 export * from './createMessageInput';
 export * from './createReportInput';
 export * from './createReportInputCategory';
 export * from './createReportInputGame';
+export * from './deletePortalUser200';
 export * from './errorEnvelope';
 export * from './forbiddenResponse';
 export * from './healthStatus';
@@ -29,6 +33,8 @@ export * from './unauthorizedResponse';
 export * from './updateReportInput';
 export * from './updateReportInputPriority';
 export * from './updateReportInputStatus';
+export * from './updateUserInput';
+export * from './updateUserInputPreferences';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';
 export * from './user';

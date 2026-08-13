@@ -360,7 +360,20 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  // Fail fast when the API is unreachable instead of hanging forever. A
+  // caller-provided signal always wins; otherwise default to a 20s timeout.
+  const supportsTimeout =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal;
+  const timeoutSignal =
+    init.signal === undefined && supportsTimeout
+      ? (AbortSignal as unknown as { timeout(ms: number): AbortSignal }).timeout(20_000)
+      : undefined;
+  const response = await fetch(input, {
+    ...init,
+    method,
+    headers,
+    signal: init.signal ?? timeoutSignal,
+  });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
