@@ -2,21 +2,29 @@ import { useState } from 'react';
 import { customFetch } from '@workspace/api-client-react';
 import type { User } from '@workspace/api-client-react';
 import { toast } from 'sonner';
-import { Check, KeyRound, Link2, Loader2, Mail, RefreshCw, Unlink } from 'lucide-react';
+import { Check, ChevronRight, Gamepad2, KeyRound, Link2, Loader2, Mail, RefreshCw, Unlink } from 'lucide-react';
 import { apiErrorMessage } from '@/lib/api';
 
-type Step = 'idle' | 'email' | 'pin' | 'completing';
+type Step = 'idle' | 'email' | 'pin' | 'pick' | 'completing';
+
+type PlayerAccount = {
+  playerId: string;
+  game: string;
+  name: string;
+  tag: string | null;
+};
 
 /**
  * Nulls Connect is a trusted authentication method: it signs you into your
  * portal account and (when already signed in) links the same account to the
- * new provider. The flow authenticates the general Nulls identity through the
- * account email — there is deliberately NO game-account selection step:
- * game accounts are separate optional data, never part of authentication.
+ * new provider.
  *
- *   email → code from email → /complete creates/links the portal account and
- *   (on sign-in) establishes the session. Used by Settings, the auth page and
- *   the report submission guard.
+ *   email → code from your email → CHOOSE your game account → /complete
+ *   creates/links the portal account and (on sign-in) establishes the session.
+ *
+ * The account is never picked implicitly: after the PIN the user always sees
+ * the list of game accounts their Nulls Connect token owns and picks one.
+ * Used by Settings, the auth page and the report submission guard.
  */
 export function NullsConnectWizard({
   linked,
@@ -40,6 +48,7 @@ export function NullsConnectWizard({
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [token, setToken] = useState('');
+  const [accounts, setAccounts] = useState<PlayerAccount[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -48,19 +57,42 @@ export function NullsConnectWizard({
     setEmail('');
     setPin('');
     setToken('');
+    setAccounts([]);
     setError('');
   };
 
-  /** Finishes authentication with the token from Nulls Connect. */
-  const complete = async (authToken: string) => {
+  /** Loads the game accounts the token owns and shows the picker. */
+  const loadAccounts = async (authToken: string) => {
     setBusy(true);
     setError('');
     try {
-      // The verified email is sent along so the server can key the portal
-      // identity to the general Nulls account (not a game player).
+      const res = await customFetch<{ links?: PlayerAccount[] }>('/api/nulls-connect/links', {
+        method: 'POST',
+        body: JSON.stringify({ token: authToken }),
+        responseType: 'json',
+      });
+      const links = res?.links ?? [];
+      if (links.length === 0) {
+        throw new Error('No game accounts found for this Nulls Connect account. Link a game account on connect.nulls.gg first.');
+      }
+      setAccounts(links);
+      setToken(authToken);
+      setStep('pick');
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Finishes authentication with the token + the chosen game account. */
+  const complete = async (authToken: string, playerId: string) => {
+    setBusy(true);
+    setError('');
+    try {
       const user = await customFetch<User>('/api/nulls-connect/complete', {
         method: 'POST',
-        body: JSON.stringify({ token: authToken, email: email.trim() }),
+        body: JSON.stringify({ token: authToken, email: email.trim(), playerId }),
         responseType: 'json',
       });
       setStep('completing');
@@ -83,8 +115,7 @@ export function NullsConnectWizard({
         { method: 'POST', body: JSON.stringify({ email: email.trim() }), responseType: 'json' },
       );
       if (res?.token) {
-        setToken(res.token);
-        await complete(res.token);
+        await loadAccounts(res.token);
       } else if (res?.pin_required) {
         setStep('pin');
       } else {
@@ -107,8 +138,7 @@ export function NullsConnectWizard({
         responseType: 'json',
       });
       if (!res?.token) throw new Error('Invalid code. Check the email from Nulls Connect and try again.');
-      setToken(res.token);
-      await complete(res.token);
+      await loadAccounts(res.token);
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {
@@ -200,6 +230,39 @@ export function NullsConnectWizard({
             {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
             Verify code
           </button>
+        </div>
+      )}
+
+      {step === 'pick' && (
+        <div>
+          <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.14em] text-[#8e98a5]">
+            <Gamepad2 size={11} /> Choose your game account
+          </p>
+          <p className="mb-3 text-[11px] leading-5 text-[#6e7887]">
+            This account signs you into the portal. You can link more later from Settings.
+          </p>
+          <div className="space-y-2">
+            {accounts.map((account) => (
+              <button
+                key={account.playerId}
+                onClick={() => void complete(token, account.playerId)}
+                disabled={busy}
+                className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#e1ded6] bg-white px-4 py-3 text-left transition hover:border-[#2e9f91] hover:bg-[#f1faf7] disabled:opacity-50"
+              >
+                <span>
+                  <span className="block text-[13px] font-bold text-[#253044]">{account.name}</span>
+                  <span className="block text-[10px] font-mono text-[#98a1ad]">
+                    {account.tag ? `#${account.tag} · ` : ''}Null's Brawl
+                  </span>
+                </span>
+                {busy ? (
+                  <Loader2 size={14} className="animate-spin text-[#2e9f91]" />
+                ) : (
+                  <ChevronRight size={14} className="text-[#98a1ad]" />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

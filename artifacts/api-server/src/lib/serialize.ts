@@ -21,7 +21,14 @@ function authMethodToJson(identity: AuthIdentity) {
   if (identity.provider === "discord") {
     label = typeof metadata.username === "string" ? metadata.username : null;
   } else if (identity.provider === "nulls_connect") {
-    label = typeof metadata.name === "string" ? metadata.name : null;
+    // The linked game account is the identity (playerName from the picker
+    // flow; name/accountId for legacy account-level links).
+    label =
+      typeof metadata.playerName === "string"
+        ? metadata.playerName
+        : typeof metadata.name === "string"
+          ? metadata.name
+          : null;
   }
   return {
     provider: identity.provider,

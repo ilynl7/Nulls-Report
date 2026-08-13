@@ -259,6 +259,14 @@ docker run -p 8080:8080 --env-file .env nulls-report
 
 Full details in [`editions/docker/README.md`](editions/docker/README.md).
 
+> **Discord over plain http:** the app itself works over both http and https
+> (cookies are scheme-aware), but **Discord only accepts https redirect URIs**
+> (except `localhost`), so Discord sign-in needs an https callback. On an
+> http-only host, put TLS in front (Caddy/nginx/tunnel) and set `PUBLIC_URL`
+> to the https origin — or use **Nulls Connect**, which works over plain http
+> and signs in with the account-picker flow (email → code → choose game
+> account).
+
 ## Branches & releases
 
 The repository is organized as **two independent branches that are never merged**:

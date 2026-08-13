@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
-import { db, portalUsersTable } from "@workspace/db";
+import { authIdentitiesTable, db, portalUsersTable } from "@workspace/db";
 import { findIdentity, firstAccountRole, generateUniqueTag, linkIdentity } from "../lib/auth";
 import { asyncHandler, httpError, type AuthedRequest } from "../lib/http";
 import { userToJson } from "../lib/serialize";
@@ -12,21 +12,27 @@ const router = Router();
  * Nulls Connect authentication.
  *
  * The portal proxies the public Nulls Connect API (connect.nulls.gg)
- * server-side so the browser never talks to it directly. Authentication is a
- * one-shot flow: the user authenticates through their email, Nulls Connect
- * returns their identity, and the portal creates/links the portal account and
- * establishes the session immediately.
+ * server-side so the browser never talks to it directly.
  *
- * The identity is the **general Nulls account** (account id / verified email),
- * NOT a game account. Game accounts are separate optional data attached to
- * that identity and are never selected, required, or used as the auth key.
- * The portal supports multiple Nulls games later — authentication stays the
- * same, game accounts just grow as metadata.
+ * Flow (restored account-picker version):
+ *   1. POST /nulls-connect/auth      { email }         → pin_required | token
+ *   2. POST /nulls-connect/verify    { email, pin }    → token
+ *   3. POST /nulls-connect/links     { token }         → the user's game accounts
+ *   4. POST /nulls-connect/complete  { token, email, playerId } → chosen game
+ *      account becomes the portal identity → creates/links the portal account,
+ *      establishes the session.
  *
- * Only the linked identity (account id/email + display info) is stored as an
- * auth identity — never the Nulls Connect auth token.
+ * The `game=laser` (Null's Brawl) parameter on the Nulls Connect login is
+ * REQUIRED: the token it returns is scoped to the game-account family, which
+ * is what lets us list the user's actual game accounts and let them CHOOSE
+ * one. No account is ever picked implicitly — the user always sees the picker
+ * after entering their PIN.
+ *
+ * Only the linked player identity (player id + name/tag) is stored as an auth
+ * identity — never the Nulls Connect auth token.
  */
 const NC_BASE = "https://connect.nulls.gg";
+const NC_GAME = "laser";
 const NC_HEADERS: Record<string, string> = {
   Accept: "application/json",
   Origin: "https://connect.nulls.gg",
@@ -66,17 +72,59 @@ function validEmail(value: unknown): string {
   return email;
 }
 
-/**
- * Builds the login.v2 URL. The account-level flow deliberately omits the
- * game parameter so the returned token authenticates the GENERAL Nulls
- * account (the email identity), never a specific game player. Game-scoped
- * tokens are not used: they would make the portal identity key to a player
- * account instead of the person's Nulls account.
- */
+/** login.v2 for the game-account family — the token can list real game accounts. */
 function loginUrl(email: string, pin?: string): string {
-  const params = new URLSearchParams({ email, locale: "ru" });
+  const params = new URLSearchParams({ email, game: NC_GAME, locale: "ru" });
   if (pin) params.set("pin", pin);
   return `${NC_BASE}/api/auth/login.v2?${params.toString()}`;
+}
+
+type PlayerAccount = {
+  playerId: string;
+  game: string;
+  name: string;
+  tag: string | null;
+};
+
+function normalizeAccount(raw: unknown): PlayerAccount | null {
+  const item = raw as {
+    player_id?: string | number;
+    game?: string;
+    player_info?: { name?: string; tag?: string };
+  };
+  const playerId = String(item?.player_id ?? "");
+  if (!playerId) return null;
+  const info = item.player_info ?? {};
+  const name = info.name || info.tag || `Nulls player ${playerId}`;
+  return {
+    playerId,
+    game: item.game || NC_GAME,
+    name,
+    tag: info.tag ?? null,
+  };
+}
+
+/** The game accounts owned by this token — what the picker shows. */
+async function fetchPlayerAccounts(token: string): Promise<PlayerAccount[]> {
+  const data = (await ncJson(`${NC_BASE}/api/games/links?game=${NC_GAME}`, {
+    Authorization: `Bearer ${token}`,
+  })) as { links?: unknown[] } | unknown[] | null;
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { links?: unknown[] })?.links)
+      ? (data as { links: unknown[] }).links
+      : [];
+  return rows.map(normalizeAccount).filter((a): a is PlayerAccount => a !== null);
+}
+
+/** Verifies the chosen player really belongs to this token. */
+async function validatePlayer(token: string, playerId: string): Promise<PlayerAccount> {
+  const accounts = await fetchPlayerAccounts(token);
+  const match = accounts.find((a) => a.playerId === playerId);
+  if (!match) {
+    throw httpError(403, "That account does not belong to this Nulls Connect token");
+  }
+  return match;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,8 +135,6 @@ router.post(
   "/nulls-connect/auth",
   asyncHandler(async (req, res) => {
     const email = validEmail(req.body?.email);
-    // Always the account-level flow: the token authenticates the general
-    // Nulls account (email), not a specific game player.
     return res.json(await ncJson(loginUrl(email)));
   }),
 );
@@ -106,153 +152,76 @@ router.post(
     if (!/^\d{1,6}$/.test(pin)) {
       throw httpError(400, "Enter the code from your email");
     }
-    // Always the account-level flow — same as the /auth step.
     return res.json(await ncJson(loginUrl(email, pin)));
   }),
 );
 
 // ---------------------------------------------------------------------------
-// Step 3 — complete authentication with the token
+// Step 3 — list the game accounts the user can pick
 // ---------------------------------------------------------------------------
 
-type AccountIdentity = {
-  accountId: string;
-  name: string | null;
-  email: string;
-};
-
-/** Picks the first present value from a list of candidate keys. */
-function pick(data: Record<string, unknown>, keys: string[]): unknown {
-  for (const key of keys) {
-    const value = data[key];
-    if (value !== undefined && value !== null && value !== "") return value;
-  }
-  return undefined;
-}
-
-/**
- * Resolves the general Nulls account behind the token. Tries the account-level
- * "me" endpoints first (the same API family as /api/me/avatar); if none are
- * available the verified email — which the user just authenticated with the
- * code from their inbox — becomes the stable identity.
- */
-async function fetchAccountIdentity(token: string, fallbackEmail: string): Promise<AccountIdentity> {
-  const attempts = ["/api/me", "/api/account", "/api/user"].map((path) => `${NC_BASE}${path}`);
-  for (const url of attempts) {
-    try {
-      const raw = (await ncJson(url, { Authorization: `Bearer ${token}` })) as
-        | Record<string, unknown>
-        | null
-        | undefined;
-      if (!raw || typeof raw !== "object") continue;
-      const data = raw as Record<string, unknown>;
-      const accountId = pick(data, ["account_id", "id", "user_id", "profile_id", "uid"]);
-      const email = pick(data, ["email", "mail", "login"]);
-      const name = pick(data, ["name", "display_name", "username", "handle", "nick"]);
-      if (accountId || email) {
-        return {
-          accountId: String(accountId ?? email ?? fallbackEmail),
-          name: typeof name === "string" && name.trim() ? name.trim().slice(0, 80) : null,
-          email: String(email ?? fallbackEmail),
-        };
-      }
-    } catch {
-      // Try the next endpoint.
+router.post(
+  "/nulls-connect/links",
+  asyncHandler(async (req, res) => {
+    const token = String(req.body?.token ?? "").trim();
+    if (!token) {
+      throw httpError(400, "Missing Nulls Connect token");
     }
-  }
-  // No account endpoint available — the verified email is the stable identity.
-  return { accountId: fallbackEmail, name: null, email: fallbackEmail };
-}
+    return res.json({ links: await fetchPlayerAccounts(token) });
+  }),
+);
 
-type GameLink = {
-  game: string;
-  playerId: string;
-  name: string;
-  tag?: string;
-};
-
-/** Normalizes a raw link row into { game, playerId, name, tag }. */
-function normalizeLink(raw: unknown, game: string): GameLink | null {
-  const item = raw as {
-    player_id?: string | number;
-    game?: string;
-    player_info?: { name?: string; tag?: string };
-  };
-  const playerId = String(item?.player_id ?? "");
-  if (!playerId) return null;
-  return {
-    game: item?.game || game,
-    playerId,
-    name:
-      item.player_info?.name ||
-      item.player_info?.tag ||
-      `Nulls player ${playerId}`,
-    tag: item.player_info?.tag,
-  };
-}
-
-/**
- * Best-effort: lists the game accounts linked to the account. This is pure
- * metadata enrichment — game accounts are NOT what authentication is about
- * and their absence never blocks login.
- */
-async function fetchGameAccounts(token: string): Promise<GameLink[]> {
-  const attempts: Array<{ game: string; url: string }> = [
-    { game: "laser", url: `${NC_BASE}/api/games/links` },
-    { game: "laser", url: `${NC_BASE}/api/games/links?game=laser` },
-  ];
-  for (const attempt of attempts) {
-    try {
-      const data = (await ncJson(attempt.url, {
-        Authorization: `Bearer ${token}`,
-      })) as { links?: unknown[] } | unknown[] | null;
-      const rows = Array.isArray(data)
-        ? data
-        : Array.isArray((data as { links?: unknown[] })?.links)
-          ? (data as { links: unknown[] }).links
-          : [];
-      const links = rows
-        .map((row) => normalizeLink(row, attempt.game))
-        .filter((l): l is GameLink => l !== null);
-      if (links.length > 0) return links;
-    } catch {
-      // Try the next variant.
-    }
-  }
-  return [];
-}
+// ---------------------------------------------------------------------------
+// Step 4 — complete authentication with the chosen game account
+// ---------------------------------------------------------------------------
 
 router.post(
   "/nulls-connect/complete",
   asyncHandler(async (req, res) => {
     const viewer = (req as AuthedRequest).portalUser ?? null;
     const token = String(req.body?.token ?? "").trim();
-    if (!token) {
-      throw httpError(400, "Missing Nulls Connect token");
-    }
-    // The email the user just verified with the code from their inbox. It is
-    // the stable identity when no account endpoint is available.
+    const playerId = String(req.body?.playerId ?? "").trim();
     const email = validEmail(req.body?.email);
+    if (!token || !playerId) {
+      throw httpError(400, "Missing Nulls Connect account details");
+    }
 
-    const identity = await fetchAccountIdentity(token, email);
-    const gameAccounts = await fetchGameAccounts(token).catch(() => []);
-
+    // The chosen game account is the portal identity for this provider.
+    const account = await validatePlayer(token, playerId);
     const metadata = {
-      name: identity.name,
-      email: identity.email,
-      accountId: identity.accountId,
-      gameAccounts,
+      playerId: account.playerId,
+      playerName: account.name,
+      playerTag: account.tag ?? null,
+      game: account.game,
+      email,
     };
 
     let user = viewer;
-    const existing = await findIdentity("nulls_connect", identity.accountId);
+    let existing = await findIdentity("nulls_connect", account.playerId);
+
+    // Continuity: if the same email already has a Nulls identity on another
+    // portal account (e.g. from the earlier account-level flow), reuse that
+    // account instead of silently creating a duplicate for the same person.
+    if (!existing && !viewer) {
+      const all = await db
+        .select()
+        .from(authIdentitiesTable)
+        .where(eq(authIdentitiesTable.provider, "nulls_connect"));
+      const emailMatch = all.find(
+        (i) => (i.metadata as { email?: string } | null)?.email === email,
+      );
+      if (emailMatch) existing = emailMatch;
+    }
 
     if (user) {
       // Linking while signed in — the identity must not belong to someone else.
       if (existing && existing.portalUserId !== user.id) {
-        throw httpError(409, "That Nulls Connect account is already linked to another portal account");
+        throw httpError(
+          409,
+          "That Nulls Connect account is already linked to another portal account",
+        );
       }
-      await linkIdentity("nulls_connect", identity.accountId, user.id, metadata);
+      await linkIdentity("nulls_connect", account.playerId, user.id, metadata);
     } else if (existing) {
       // Known identity → authenticate that portal account.
       const owners = await db
@@ -262,7 +231,7 @@ router.post(
         .limit(1);
       if (owners.length === 0) throw httpError(500, "Linked account no longer exists");
       user = owners[0];
-      await linkIdentity("nulls_connect", identity.accountId, user.id, metadata);
+      await linkIdentity("nulls_connect", account.playerId, user.id, metadata);
     } else {
       // First-time sign-in with Nulls Connect → create the portal account.
       // In a fresh database the very first account becomes the administrator.
@@ -270,12 +239,12 @@ router.post(
         .insert(portalUsersTable)
         .values({
           tag: await generateUniqueTag(),
-          displayName: identity.name ?? identity.email.split("@")[0] ?? "Nulls account",
+          displayName: account.name.slice(0, 80),
           role: await firstAccountRole(),
         })
         .returning();
       user = created;
-      await linkIdentity("nulls_connect", identity.accountId, created.id, metadata);
+      await linkIdentity("nulls_connect", account.playerId, created.id, metadata);
     }
 
     if (user.blocked) {
