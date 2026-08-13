@@ -184,14 +184,19 @@ stdout (great with `docker logs`). Set `LOG_LEVEL=debug` for more detail.
 
 ## Building from source (optional)
 
+This branch (`dockermain`) ships the **prebuilt** edition — there is no build
+toolchain here. The full portal source lives on the **`main`** branch:
+
 ```bash
 git clone https://github.com/ilyln7/Nulls-Report.git
 cd Nulls-Report
-pnpm install
-pnpm run build                                   # builds the web app
-pnpm --filter @workspace/api-server run build:docker-edition   # bundles server.js
+git checkout main
 docker build -f editions/docker/Dockerfile -t nulls-report .   # or compose
 ```
+
+The `main` branch builds the web app, bundles `server.js`, and copies everything
+into `editions/docker/`. The `dockermain` branch is generated from it for each
+release — clone it only if you want the ready-to-run artifact without building.
 
 ## Endpoints
 
@@ -206,5 +211,5 @@ docker build -f editions/docker/Dockerfile -t nulls-report .   # or compose
 
 Replace `server.js` and `dist/` with the files from a newer release archive and
 restart. Your data lives in Postgres and (optionally) S3 — upgrades never touch
-it. In Docker, `docker compose -f editions/docker/docker-compose.yml up -d
---build` rebuilds from the latest source.
+it. In Docker, `docker compose up -d --build` rebuilds the image from the files
+in this folder.

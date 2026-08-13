@@ -1,29 +1,24 @@
 # Nulls Report — Docker edition (docker compose)
 #
-#   docker compose -f editions/docker/docker-compose.yml up -d --build
+#   docker compose up -d --build
 #
-# Create an `.env` file next to this compose file (or in the repo root) with
-# at minimum:
+# Create an `.env` file in this folder with at minimum:
 #   DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
 #
 # Optionally add DISCORD_CLIENT_ID/DISCORD_CLIENT_SECRET to enable
 # "Continue with Discord", PUBLIC_URL for the canonical public origin, and
-# S3_BUCKET/S3_ENDPOINT/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY
-# for durable attachment storage. Without a bucket, attachments are stored
-# on the volume mounted at /app/.local-uploads below.
+# ADMIN_TAG for the general administrator account.
 
 services:
   nulls-report:
-    build:
-      context: ..
-      dockerfile: editions/docker/Dockerfile
+    build: .
     image: nulls-report
     container_name: nulls-report
     restart: unless-stopped
     ports:
       - "8080:8080"
     env_file:
-      - ../.env
+      - .env
     environment:
       PORT: "8080"
     volumes:

@@ -1,38 +1,31 @@
 # ============================================================================
-# Nulls Report — Docker edition
+# Nulls Report — Docker edition (standalone / prebuilt)
 #
-# Build (from the repository root):
-#   docker build -f editions/docker/Dockerfile -t nulls-report .
+# This branch (dockermain) ships the PREBUILT edition: `server.js` (the whole
+# application — Express API, Discord + Nulls Connect auth, every route, the
+# prebuilt web app — bundled into one file) plus `dist/` (the web app). There
+# is no build step: the image just copies the artifacts and runs ONE process:
+#
+#   CMD ["node", "server.js"]
+#
+# Build (from this folder):
+#   docker build -t nulls-report .
 #
 # Run:
 #   docker run -p 8080:8080 --env-file .env nulls-report
 #
-# The final image contains exactly two things: `server.js` (the whole
-# application bundled into a single file — API, auth, routes, everything)
-# and `dist/` (the prebuilt web app). The container runs ONE process:
-#
-#   CMD ["node", "server.js"]
-#
-# All configuration comes from environment variables (DATABASE_URL,
-# SESSION_SECRET, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, PORT, …). Nothing
-# is baked in, so the same image works in dev, staging, and production.
+# All configuration comes from environment variables at runtime — nothing is
+# baked into the image:
+#   DATABASE_URL             required — Postgres connection string
+#   DISCORD_CLIENT_ID        optional — enables "Continue with Discord"
+#   DISCORD_CLIENT_SECRET    optional — Discord OAuth secret
+#   PUBLIC_URL               optional — canonical public origin (Discord OAuth
+#                            callback is derived from it; must be https for
+#                            Discord sign-in to work)
+#   ADMIN_TAG                optional — public tag of the general administrator
+#   PORT                     optional — default 8080
 # ============================================================================
 
-# ---- Build stage: install deps, build the web app, bundle server.js ----
-FROM node:20-alpine AS build
-
-# pnpm is required by this repo (the preinstall script enforces it).
-RUN corepack enable
-
-WORKDIR /repo
-
-COPY . .
-
-RUN pnpm install --frozen-lockfile
-RUN pnpm run build
-RUN pnpm --filter @workspace/api-server run build:docker-edition
-
-# ---- Runtime stage: node + server.js + dist, nothing else ----
 FROM node:20-alpine
 
 ENV NODE_ENV=production
@@ -40,9 +33,9 @@ ENV PORT=8080
 
 WORKDIR /app
 
-COPY --from=build /repo/editions/docker/package.json /app/package.json
-COPY --from=build /repo/editions/docker/server.js /app/server.js
-COPY --from=build /repo/artifacts/nulls-report/dist/public /app/dist
+COPY package.json ./
+COPY server.js ./
+COPY dist ./dist
 
 EXPOSE 8080
 
