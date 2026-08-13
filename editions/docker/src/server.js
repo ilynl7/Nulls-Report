@@ -7,14 +7,18 @@
 //
 // Configuration comes entirely from environment variables (or a .env file in
 // the working directory), so the SAME prebuilt artifact works with any
-// database and any Clerk keys:
+// database and any auth keys:
 //
-//   DATABASE_URL            required — Postgres connection string
-//   CLERK_SECRET_KEY        required — Clerk backend secret
-//   CLERK_PUBLISHABLE_KEY   required — Clerk frontend publishable key
-//   PORT                    optional — default 8080
-//   STATIC_DIR              optional — where the web build lives (default ./dist)
-//   S3_BUCKET / R2_BUCKET   optional — S3-compatible attachment storage
+//   DATABASE_URL             required — Postgres connection string
+//   PUBLIC_URL               optional — canonical public origin (Discord OAuth
+//                            callback is derived from it; defaults to the
+//                            request origin)
+//   DISCORD_CLIENT_ID        optional — enables "Continue with Discord"
+//   DISCORD_CLIENT_SECRET    optional — Discord OAuth secret
+//   ADMIN_TAG                optional — public tag of the general administrator
+//   PORT                     optional — default 8080
+//   STATIC_DIR               optional — where the web build lives (default ./dist)
+//   S3_BUCKET / R2_BUCKET    optional — S3-compatible attachment storage
 //   S3_ENDPOINT / S3_REGION / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY
 
 // Load .env files BEFORE the app module evaluates (the database layer reads
@@ -26,23 +30,23 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 
-// The whole application: Express API + Clerk auth + every route. Bundled in.
-// (repo/editions/docker/src -> repo/artifacts/api-server/src/app.ts)
+// The whole application: Express API + Discord/Nulls Connect auth + every
+// route. Bundled in. (repo/editions/docker/src ->
+// repo/artifacts/api-server/src/app.ts)
 import app from "../../../artifacts/api-server/src/app.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // ---------------------------------------------------------------------------
 // Serve the prebuilt web app (./dist) and fall back to index.html for
-// client-side routes (wouter). /api and Clerk's proxy keep their own
-// handlers registered above.
+// client-side routes (wouter). /api keeps its own handlers registered above.
 // ---------------------------------------------------------------------------
 const distDir = process.env.STATIC_DIR || path.join(here, "dist");
 
 app.use(express.static(distDir, { index: false, maxAge: "1h" }));
 app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") return next();
-  if (req.path.startsWith("/api") || req.path.startsWith("/__clerk")) return next();
+  if (req.path.startsWith("/api")) return next();
   res.sendFile(path.join(distDir, "index.html"), (err) => {
     if (err) next();
   });

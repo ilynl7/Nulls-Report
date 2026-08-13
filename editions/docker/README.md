@@ -70,6 +70,8 @@ DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
 # Optional: enables "Continue with Discord" (Nulls Connect sign-in works without it)
 DISCORD_CLIENT_ID=...
 DISCORD_CLIENT_SECRET=...
+# Optional: your public origin so the Discord OAuth callback matches exactly
+PUBLIC_URL=https://reports.example.com
 EOF
 
 # 3a. Direct run (any Node.js >= 20.11)
@@ -93,6 +95,8 @@ one artifact works for any database.
 | --- | --- | --- |
 | `DATABASE_URL` | ✅ | Postgres connection string, e.g. `postgres://user:pass@host:5432/db?sslmode=require`. Timescale-style URLs are handled automatically. |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | – | Optional — enables **Continue with Discord** (OAuth app at discord.com/developers). Without them the Discord button is disabled; Nulls Connect still works. |
+| `PUBLIC_URL` | – | Canonical public origin of your deployment, e.g. `https://reports.example.com`. The Discord OAuth callback is derived from it (`PUBLIC_URL + /api/auth/discord/callback`) — it must exactly match the redirect URI registered in the Discord Developer Portal. Defaults to the origin of the incoming request. |
+| `ADMIN_TAG` | – | Public tag of the general administrator account (e.g. `ADMIN_TAG=A7K4P2`). That account is elevated to administrator; all other staff is managed in the Admin panel. |
 | `PORT` | – | Port to listen on (default `8080`). Your panel may inject this automatically. |
 | `STATIC_DIR` | – | Where the web build lives (default `./dist` next to `server.js`). |
 | `S3_BUCKET` or `R2_BUCKET` | – | Enables S3-compatible attachment storage (AWS S3, Cloudflare R2, Backblaze, MinIO…). |

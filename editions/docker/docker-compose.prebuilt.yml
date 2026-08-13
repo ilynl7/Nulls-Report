@@ -4,8 +4,9 @@
 #
 # Create an `.env` file in this folder with at minimum:
 #   DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
-#   CLERK_SECRET_KEY=sk_test_...
-#   CLERK_PUBLISHABLE_KEY=pk_test_...
+#
+# Optionally add DISCORD_CLIENT_ID/DISCORD_CLIENT_SECRET to enable
+# "Continue with Discord", and PUBLIC_URL for the canonical public origin.
 
 services:
   nulls-report:
