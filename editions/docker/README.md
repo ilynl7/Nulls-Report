@@ -143,6 +143,29 @@ The server is running but `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` are not
 set, so the Discord button is disabled. Add them and restart — or sign in with
 Nulls Connect, which needs no extra keys.
 
+**Discord login fails on a plain-http host ("invalid redirect_uri").**
+Discord only accepts **https** redirect URIs (except `localhost`), so on a host
+served over plain http Discord sign-in is rejected by Discord itself. The app
+itself works over http (cookies are scheme-aware) — to use Discord, put TLS in
+front of the container and set `PUBLIC_URL` to the https origin. One-liner
+with Caddy (auto-HTTPS):
+
+```
+# Caddyfile
+reports.example.com {
+    reverse_proxy nulls-report:8080
+}
+```
+
+```bash
+docker run -d -p 8080:8080 --env-file .env \
+  -e PUBLIC_URL=https://reports.example.com \
+  -v $PWD/Caddyfile:/etc/caddy/Caddyfile -p 443:443 -p 80:80 caddy
+```
+
+Register `https://reports.example.com/api/auth/discord/callback` in the Discord
+developer portal. **Nulls Connect works over plain http** and needs no TLS.
+
 **Logs look like JSON lines.** That's expected — the edition logs plain JSON to
 stdout (great with `docker logs`). Set `LOG_LEVEL=debug` for more detail.
 

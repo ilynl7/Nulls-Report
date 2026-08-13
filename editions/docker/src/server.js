@@ -69,4 +69,15 @@ app.listen(port, "0.0.0.0", () => {
       `[nulls-report] (e.g. docker run -p <publicPort>:${port} ...). The host URL you type in the\n` +
       `[nulls-report] browser (http://<host>:<publicPort>/) is decided by your server/hosting panel.`,
   );
+  if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET) {
+    const publicUrl = (process.env.PUBLIC_URL ?? "").trim();
+    console.log(
+      `[nulls-report] NOTE: Discord sign-in requires an https callback (Discord rejects http redirect URIs).\n` +
+        `[nulls-report] If this host is plain http, Discord login will not work - add TLS in front (Caddy/nginx/tunnel)\n` +
+        `[nulls-report] and set PUBLIC_URL to the https origin, or use Nulls Connect which works over http.` +
+        (publicUrl.startsWith("http://")
+          ? ` (PUBLIC_URL is currently http: ${publicUrl})`
+          : ""),
+    );
+  }
 });
