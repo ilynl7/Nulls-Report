@@ -1,0 +1,27 @@
+# Nulls Report — Docker edition (prebuilt / slim)
+#
+# For use with the prebuilt release archive (nulls-report-docker-edition.tar.gz).
+# Everything is already built: `server.js` (the whole app in one file) and
+# `dist/` (the web app). The image just copies them and runs ONE process:
+#
+#   CMD ["node", "server.js"]
+#
+#   docker build -t nulls-report .
+#   docker run -p 8080:8080 --env-file .env nulls-report
+
+FROM node:20-alpine
+
+ENV NODE_ENV=production
+ENV PORT=8080
+
+WORKDIR /app
+
+COPY package.json ./
+COPY server.js ./
+COPY pino-*.js ./
+COPY thread-stream-worker.js ./
+COPY dist ./dist
+
+EXPOSE 8080
+
+CMD ["node", "server.js"]

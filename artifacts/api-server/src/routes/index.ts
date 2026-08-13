@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import configRouter from "./config";
 import accountRouter from "./account";
 import reportsRouter from "./reports";
 import notificationsRouter from "./notifications";
@@ -10,6 +11,7 @@ import nullsConnectRouter from "./nulls-connect";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(configRouter);
 router.use(accountRouter);
 router.use(reportsRouter);
 router.use(notificationsRouter);

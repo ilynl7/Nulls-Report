@@ -184,6 +184,35 @@ Fly, or a managed platform):
 2. Build: `pnpm run build` (frontend → `dist/`, API → `dist/` bundle).
 3. Start: `pnpm --filter @workspace/api-server run start` (serves the built frontend too).
 
+## Docker edition (single `server.js`)
+
+A special edition built for **Node.js Docker images**: the entire portal — Express API,
+Clerk auth, all routes, database access, attachment storage, and the prebuilt web app — is
+bundled into **one self-contained `server.js`**. The container runs exactly one process:
+
+```bash
+node server.js
+```
+
+Everything is configured at **runtime** via environment variables (`DATABASE_URL`,
+`CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `PORT`, …) — nothing is baked into the build,
+so the same artifact works with any database and any Clerk keys. The frontend fetches its
+Clerk key from the server (`GET /api/config`) at startup.
+
+**Get it:** download `nulls-report-docker-edition.tar.gz` from the GitHub release (contains
+`server.js`, the prebuilt `dist/`, `Dockerfile`, `docker-compose.yml`, and a README), or
+build it from source:
+
+```bash
+pnpm install
+pnpm run build
+pnpm --filter @workspace/api-server run build:docker-edition   # -> editions/docker/server.js
+docker build -f editions/docker/Dockerfile -t nulls-report .
+docker run -p 8080:8080 --env-file .env nulls-report
+```
+
+Full details in [`editions/docker/README.md`](editions/docker/README.md).
+
 ## Project structure
 
 ```

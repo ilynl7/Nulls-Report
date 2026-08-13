@@ -1,0 +1,62 @@
+// Nulls Report — Docker edition entry point.
+//
+// This file is bundled (with all dependencies) into a single self-contained
+// `server.js` by `pnpm --filter @workspace/api-server run build:docker-edition`.
+// The Docker image runs exactly one process: `node server.js`, which serves
+// BOTH the API (everything under /api) and the prebuilt web app (./dist).
+//
+// Configuration comes entirely from environment variables (or a .env file in
+// the working directory), so the SAME prebuilt artifact works with any
+// database and any Clerk keys:
+//
+//   DATABASE_URL            required — Postgres connection string
+//   CLERK_SECRET_KEY        required — Clerk backend secret
+//   CLERK_PUBLISHABLE_KEY   required — Clerk frontend publishable key
+//   PORT                    optional — default 8080
+//   STATIC_DIR              optional — where the web build lives (default ./dist)
+//   S3_BUCKET / R2_BUCKET   optional — S3-compatible attachment storage
+//   S3_ENDPOINT / S3_REGION / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY
+
+// Load .env files BEFORE the app module evaluates (the database layer reads
+// DATABASE_URL at import time). Import order matters: this side-effect import
+// must stay first.
+import "./env.mjs";
+
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import express from "express";
+
+// The whole application: Express API + Clerk auth + every route. Bundled in.
+// (repo/editions/docker/src -> repo/artifacts/api-server/src/app.ts)
+import app from "../../../artifacts/api-server/src/app.ts";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+// ---------------------------------------------------------------------------
+// Serve the prebuilt web app (./dist) and fall back to index.html for
+// client-side routes (wouter). /api and Clerk's proxy keep their own
+// handlers registered above.
+// ---------------------------------------------------------------------------
+const distDir = process.env.STATIC_DIR || path.join(here, "dist");
+
+app.use(express.static(distDir, { index: false, maxAge: "1h" }));
+app.use((req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  if (req.path.startsWith("/api") || req.path.startsWith("/__clerk")) return next();
+  res.sendFile(path.join(distDir, "index.html"), (err) => {
+    if (err) next();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Listen — bind 0.0.0.0 so Docker port mapping works.
+// ---------------------------------------------------------------------------
+const rawPort = process.env.PORT ?? "8080";
+const port = Number(rawPort);
+if (Number.isNaN(port) || port <= 0) {
+  throw new Error(`Invalid PORT value: "${rawPort}"`);
+}
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`[nulls-report] listening on 0.0.0.0:${port}`);
+});

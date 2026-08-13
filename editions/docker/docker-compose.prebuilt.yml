@@ -1,0 +1,26 @@
+# Nulls Report — Docker edition (prebuilt archive)
+#
+#   docker compose up -d --build
+#
+# Create an `.env` file in this folder with at minimum:
+#   DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
+#   CLERK_SECRET_KEY=sk_test_...
+#   CLERK_PUBLISHABLE_KEY=pk_test_...
+
+services:
+  nulls-report:
+    build: .
+    image: nulls-report
+    container_name: nulls-report
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+    volumes:
+      - nulls-uploads:/app/.local-uploads
+
+volumes:
+  nulls-uploads:
